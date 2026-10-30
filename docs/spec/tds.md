@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "30 October 2026"
-version: "0.2 (Draft)"
+version: "0.3 (Draft)"
 ---
 
 # Document Control
@@ -1069,12 +1069,12 @@ Headroom is reserved for the OS, Dockhand, Uptime Kuma and other homelab workloa
 
 Development follows **test-driven development** in every layer: each behaviour change starts with a failing test, and a bug fix's first test reproduces the bug. Exceptions:
 
-- Trivial changes (configuration values, renames, documentation) need no new test.
-- Templates are covered by the end-to-end UI smoke flows (Section 9.2) instead of test-first unit tests.
+- Trivial changes (renames, documentation, configuration values that do not change specified behaviour) need no new test.
+- Template markup needs no test-first unit test; the route or handler behind it is still test-first, and the end-to-end UI smoke flows (Section 9.2) cover rendering after merge.
 - Migrations are covered by integration tests written after the migration.
 - Core mechanisms (job queue, rate limiter, ranking, conversion pipeline) are implemented by the owner; agents write the failing tests from the requirement IDs, the owner writes the code that passes them.
 
-Red, green and refactor steps are not separate commits: a commit holds one behaviour with its tests, all checks green.
+Red, green and refactor steps are not separate commits, and commit messages and merge requests do not name them: a commit holds one behaviour with its tests, all checks green.
 
 Each functional requirement maps to at least one automated test referencing its ID (e.g. `@pytest.mark.req("FR-CNV-08")`); a CI step reports requirement coverage.
 
@@ -1270,7 +1270,7 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 | **M7 — DAST & hardening** | OWASP ZAP in pipeline, threat model review, container hardening audit, performance tests | No high-risk ZAP findings; NFR-01..05 verified | 1 week |
 | **M8 — Extras (P1/P2)** | Digests, PDF fallback, Kindle profiles, collections, BibTeX export, clippings import, RAG assistant (LangGraph) | Feature-specific acceptance tests pass | ongoing |
 
-Implementation guidance for AI-assisted development: core mechanisms (job queue, rate limiter, ranking, conversion pipeline) SHOULD be implemented by the owner directly; agents MAY be used for scaffolding, adapters, tests and configuration. Each milestone SHOULD be broken into spec changes referencing the requirement IDs in this document.
+Implementation guidance for AI-assisted development: core mechanisms (job queue, rate limiter, ranking, conversion pipeline) SHOULD be implemented by the owner directly; agents MAY be used for scaffolding, adapters, tests and configuration (for core mechanisms, the failing tests first; see Section 9.1). Each milestone SHOULD be broken into spec changes referencing the requirement IDs in this document.
 
 
 # 15. Risks and Open Questions

@@ -5,7 +5,7 @@ readme = "README.md"
 authors = [
     { name = "jx-nin" }
 ]
-requires-python = ">=3.15"
+requires-python = ">=3.14"
 dependencies = [
     "feedparser>=6.0.14",
     "httpx>=0.28.1",
@@ -31,7 +31,7 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py315"
+target-version = "py314"
 
 [tool.ruff.lint]
 # E/W/F = flake8, I = import order, D = docstrings, N = naming, B = bugbears, UP = modern syntax
@@ -45,12 +45,19 @@ convention = "pep257"
 
 [tool.mypy]
 strict = true
-python_version = "3.15"
+python_version = "3.14"
 files = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=arx --cov-report=term-missing"
+addopts = "--strict-markers --cov=arx --cov-report=term-missing"
+# Tests mirror src/arx/; the test level comes from a marker, not a folder.
+markers = [
+    "req(id): requirement ID from docs/spec/tds.md this test covers, e.g. FR-ING-03",
+    "integration: needs real services (PostgreSQL via testcontainers)",
+    "contract: parses recorded external responses (arXiv fixtures)",
+    "golden: conversion snapshot test against representative papers",
+]
 
 [tool.coverage.report]
 fail_under = 90

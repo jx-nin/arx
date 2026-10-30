@@ -2,6 +2,10 @@
 
 Fetch and read arXiv papers.
 
+Design and requirements: [docs/spec/tds.md](docs/spec/tds.md). Decisions: [docs/knowledge/](docs/knowledge/index.md).
+
+Requires Python 3.14 (pinned in `.python-version`).
+
 ## Setup
 
 ```bash

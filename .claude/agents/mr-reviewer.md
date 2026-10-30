@@ -22,10 +22,11 @@ Run and report failures verbatim (short):
 - `uv run sphinx-build -q -W docs docs/_build`
 
 Then review by hand:
+- **Spec**: changes match the requirement IDs they cite; core mechanisms (job queue, rate limiter, ranking, conversion pipeline) not implemented by an agent; layering rules from spec 5.2 respected.
 - **Correctness**: bugs, unhandled errors, edge cases, missing or weak tests for changed behaviour.
 - **Project rules**: files under 500 lines, readable over clever, PEP 8 module layout (docstring, imports, constants, code), full type hints, reST docstrings (`:param:`, `:returns:`, `:raises:`) on public API, `logging.getLogger(__name__)` instead of `print` for diagnostics.
 - **Structure**: new modules in the right place under `src/arx/`, tests mirroring them under `tests/`, no stray files, nothing that belongs in `.gitignore`.
-- **Docs in sync**: `README.md`, Sphinx pages, docstrings and `CLAUDE.md` still describe the code and tooling as changed.
+- **Docs in sync**: `docs/spec/tds.md` (behaviour or requirement changes reflected, revision-history row added), `README.md`, Sphinx pages, docstrings and `CLAUDE.md` still describe the code and tooling as changed.
 - **Knowledge graph (OKF v0.2, `docs/knowledge/`)**: each new concept/decision/component has a concept file with non-empty `type`; `index.md` lists it; `log.md` has a dated entry (`## YYYY-MM-DD`, newest first); links resolve; reserved names `index.md`/`log.md` are not used as concepts; existing concepts are updated or marked `status: deprecated` when the change contradicts them.
 - **MR size**: flag if the diff mixes unrelated changes and should be split.
 

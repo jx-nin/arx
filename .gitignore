@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.epub
+docs/_build/
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage.*
+htmlcov/
+coverage.xml
+dist/
+build/
+*.egg-info/
+.claude/settings.local.json

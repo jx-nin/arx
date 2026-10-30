@@ -1,0 +1,56 @@
+[project]
+name = "arx"
+version = "0.1.0"
+readme = "README.md"
+authors = [
+    { name = "jx-nin" }
+]
+requires-python = ">=3.15"
+dependencies = [
+    "feedparser>=6.0.14",
+    "httpx>=0.28.1",
+    "psycopg[binary]>=3.3.6",
+]
+
+[project.scripts]
+arx = "arx:main"
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
+    "sphinx>=9.2.0",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py315"
+
+[tool.ruff.lint]
+# E/W/F = flake8, I = import order, D = docstrings, N = naming, B = bugbears, UP = modern syntax
+select = ["E", "W", "F", "I", "D", "N", "B", "UP"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.mypy]
+strict = true
+python_version = "3.15"
+files = ["src", "tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=arx --cov-report=term-missing"
+
+[tool.coverage.report]
+fail_under = 90

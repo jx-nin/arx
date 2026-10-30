@@ -50,7 +50,14 @@ files = ["src", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--cov=arx --cov-report=term-missing"
+addopts = "--strict-markers --cov=arx --cov-report=term-missing"
+# Tests mirror src/arx/; the test level comes from a marker, not a folder.
+markers = [
+    "req(id): requirement ID from docs/spec/tds.md this test covers, e.g. FR-ING-03",
+    "integration: needs real services (PostgreSQL via testcontainers)",
+    "contract: parses recorded external responses (arXiv fixtures)",
+    "golden: conversion snapshot test against representative papers",
+]
 
 [tool.coverage.report]
 fail_under = 90

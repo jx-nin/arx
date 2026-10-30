@@ -21,3 +21,4 @@ okf_version: "0.2"
 * [ADR-008 GitOps](/decisions/adr-008-gitops.md) - Argo CD pull deployment in phase 2
 * [ADR-009 Isolated converter](/decisions/adr-009-converter-isolation.md) - sandboxed document tooling
 * [ADR-010 Python 3.14](/decisions/adr-010-python.md) - newest version all dependencies support
+* [Test-driven development](/decisions/tdd.md) - test-first in every layer, named exceptions, one commit per behaviour

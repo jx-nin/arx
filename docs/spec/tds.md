@@ -11,7 +11,7 @@ version: "0.2 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.2 — Draft |
+| Version | 0.3 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 30 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.2 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.3 | 2026-10-30 | Section 9.1: test-driven development in every layer with named exceptions; core mechanisms get agent-written tests and owner-written code; TDD steps are not committed separately |
 | 0.2 | 2026-10-30 | Aligned with repository decisions: Python 3.14, mypy instead of pyright, 90% coverage, tests mirror `src/arx/` with level markers, ADRs kept in the OKF knowledge bundle; added open questions Q-7..Q-14 |
 | 0.1 | 2026-10-30 | Initial draft: requirements, architecture, data model, pipelines, security, operations, roadmap |
 
@@ -1066,7 +1067,16 @@ Headroom is reserved for the OS, Dockhand, Uptime Kuma and other homelab workloa
 
 ## 9.1 Approach
 
-Development follows **test-driven development** for domain logic and services. Each functional requirement maps to at least one automated test referencing its ID (e.g. `@pytest.mark.req("FR-CNV-08")`); a CI step reports requirement coverage.
+Development follows **test-driven development** in every layer: each behaviour change starts with a failing test, and a bug fix's first test reproduces the bug. Exceptions:
+
+- Trivial changes (configuration values, renames, documentation) need no new test.
+- Templates are covered by the end-to-end UI smoke flows (Section 9.2) instead of test-first unit tests.
+- Migrations are covered by integration tests written after the migration.
+- Core mechanisms (job queue, rate limiter, ranking, conversion pipeline) are implemented by the owner; agents write the failing tests from the requirement IDs, the owner writes the code that passes them.
+
+Red, green and refactor steps are not separate commits: a commit holds one behaviour with its tests, all checks green.
+
+Each functional requirement maps to at least one automated test referencing its ID (e.g. `@pytest.mark.req("FR-CNV-08")`); a CI step reports requirement coverage.
 
 Test files mirror `src/arx/` (e.g. `src/arx/jobs/queue.py` → `tests/jobs/test_queue.py`). The test level is a pytest marker, not a folder: unmarked tests are unit tests; `integration`, `contract` and `golden` mark the other levels. Markers are registered in `pyproject.toml` and enforced with `--strict-markers`. Shared inputs live in `tests/fixtures/`; evaluation datasets in `tests/evals/`.
 

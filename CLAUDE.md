@@ -24,6 +24,8 @@
 ## Tests
 - `pytest` under `tests/`, mirroring the `src/arx/` layout; test level via markers (`integration`, `contract`, `golden`), unmarked = unit. Fixtures in `tests/fixtures/`, eval datasets in `tests/evals/`.
 - Coverage must stay at or above 90% (`fail_under` in `pyproject.toml`); aim higher.
+- Test-first per spec 9.1: every behaviour change in any layer starts with a failing test; a bug fix's first test reproduces the bug. Exceptions and the core-mechanism split are listed there.
+- TDD steps are working practice, not history: commit a behaviour with its tests once green, and never name red/green/refactor in commits or MRs.
 
 ## Tooling
 - Install hooks once: `uv run pre-commit install`.

@@ -818,6 +818,8 @@ decay(age) = 0.5 ^ (age_days / 60)    # half-life 60 days
 
 ## 6.5 Conversion Pipeline
 
+The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite Signature Edition (11th generation), 1236 × 1648 px, `image_dpi` 300, greyscale. The migration that creates `kindle_profile` seeds it with `is_default = TRUE`. Margins subtracted from the figure width (6.5.1 step 5) are tuned during the device test (Q-3).
+
 ### 6.5.1 HTML → EPUB (primary path)
 
 | Step | Operation | Details |

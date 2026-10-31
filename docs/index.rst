@@ -24,3 +24,9 @@ arx
 
 .. automodule:: arx.adapters.mail.smtp_mailer
    :members:
+
+.. automodule:: arx.bootstrap
+   :members:
+
+.. automodule:: arx.cli.main
+   :members:

@@ -15,4 +15,6 @@ generated: { by: "agent:claude-opus-5-5", at: 2026-10-31T00:00:00Z }
 * Attachment name `<surname>-<year>-<five title words>.epub`, ASCII-folded, at most 80 characters; the versioned arXiv ID replaces a surname without ASCII letters.
 * `adapters/mail/smtp_mailer.py`: `SmtpMailer` uses stdlib `smtplib` with STARTTLS (certificate verified) and login; it reads the password file on every send. Provider per the [SMTP provider decision](/decisions/smtp-provider.md), library per [mail and settings libraries](/decisions/mail-library.md).
 * `settings.py`: pydantic-settings reads `ARX_*` variables and `.env`; secrets only as file paths (spec 7.4). Settings refuse an empty allowlist or a non-`@kindle.com` recipient.
-* Not wired yet: `bootstrap.py` and the CLI come in the next slice. Implicit TLS (465) is unsupported until a provider needs it.
+* `bootstrap.py`: `build_delivery_service(settings)` wires `Settings` → `SmtpMailer` → `DeliveryService`.
+* `cli/main.py`: `arx send FILE.epub --to … --id …v<N> --title … [--author …] --published YYYY-MM-DD` builds the `Paper` from flags (abstract empty until the arXiv client exists) and exits with a one-line reason on `ValueError` or `OSError`.
+* Implicit TLS (465) is unsupported until a provider needs it.

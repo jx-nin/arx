@@ -236,7 +236,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | FR-DLV-01 | The owner MUST be able to send a single paper to the Kindle with one action. | P0 |
 | FR-DLV-02 | Delivery MUST use e-mail to the configured `@kindle.com` address from an approved sender, with the converted file as attachment. | P0 |
-| FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 50 MB)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
+| FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 24 MiB, below the sending provider's 25 MB limit, see 6.6.3)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
 | FR-DLV-04 | The owner SHOULD be able to schedule an automatic digest (daily or weekly) containing the top-ranked or explicitly queued papers. | P1 |
 | FR-DLV-05 | The system MUST keep a delivery history (paper(s), file hash, size, timestamp, outcome, error). | P0 |
 | FR-DLV-06 | Transient delivery failures MUST be retried with exponential backoff; permanent failures MUST be surfaced in the UI. | P0 |
@@ -882,9 +882,10 @@ Client requirements:
 ### 6.6.3 Send to Kindle (SMTP)
 
 - Transport: SMTP submission with STARTTLS (587) or implicit TLS (465); credentials via secret.
+- Provider (Q-4): a dedicated Gmail account used only by Arx, `smtp.gmail.com:587` with STARTTLS and an app password. Gmail accepts attachments up to 25 MB *(verify)*, below the 50 MB that Send to Kindle accepts, so the Gmail limit sets `DELIVERY_MAX_BYTES`. Switching to a transactional provider (own domain with SPF/DKIM) changes configuration only.
 - The sender address MUST be on the Amazon "Approved Personal Document E-mail List"; recipient MUST be in `DELIVERY_ALLOWED_RECIPIENTS`.
 - Message: plain-text body with paper titles; attachment with RFC 2231-encoded filename `<first-author>-<year>-<short-title>.epub` (ASCII-safe).
-- Size check before sending against `DELIVERY_MAX_BYTES` *(default 50 MB, verify)*.
+- Size check before sending against `DELIVERY_MAX_BYTES` *(default 24 MiB, verify)*.
 - Outcome tracking: SMTP acceptance is recorded as `sent`; Amazon does not provide delivery confirmation to the application.
 
 ## 6.7 API Specification
@@ -1228,7 +1229,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | `ARX_SMTP_PASSWORD_FILE` | `/run/secrets/smtp_password` | Secret |
 | `ARX_DELIVERY_FROM` | — | Approved sender address |
 | `ARX_DELIVERY_ALLOWED_RECIPIENTS` | — | Comma-separated `@kindle.com` addresses |
-| `ARX_DELIVERY_MAX_BYTES` | `52428800` | Attachment limit *(verify)* |
+| `ARX_DELIVERY_MAX_BYTES` | `25165824` | Attachment limit, 24 MiB below Gmail's 25 MB *(verify)* |
 | `ARX_STORAGE_PATH` | `/data/files` | Conversion cache location |
 | `ARX_STORAGE_QUOTA_GB` | `10` | Cache eviction threshold |
 | `ARX_SESSION_SECRET_FILE` | `/run/secrets/session_secret` | Cookie signing key |

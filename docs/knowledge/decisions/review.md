@@ -13,3 +13,4 @@ generated: { by: human:jx-nin, at: 2026-10-30T00:00:00Z }
 * It reviews only the branch diff against `main` and checks correctness, the rules in `CLAUDE.md`, style, structure, and that docs and this bundle stay in sync.
 * It runs the same checks as the [tooling stack](/decisions/tooling.md) and never edits files.
 * It flags changed behaviour that ships without tests, per [test-driven development](/decisions/tdd.md).
+* Review is agentic: agents write all code, core mechanisms included; the owner raises questions and adjustments (spec v0.5, 9.1).

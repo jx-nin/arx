@@ -9,6 +9,7 @@ okf_version: "0.2"
 # Components
 
 * [EPUB conversion](/components/epub-conversion.md) - arXiv HTML to EPUB 3 via pandoc with a Kindle stylesheet (M0)
+* [Kindle delivery](/components/kindle-delivery.md) - EPUB by e-mail over Gmail SMTP, recipient allowlist and size limit (M0)
 
 # Decisions
 
@@ -29,5 +30,6 @@ okf_version: "0.2"
 * [Database driver psycopg 3](/decisions/db-driver.md) - one driver for async app code and sync Alembic/CLI
 * [Default Kindle profile](/decisions/kindle-profile.md) - Paperwhite 11th gen Signature, 1236 × 1648 px, 300 dpi, greyscale
 * [SMTP provider Gmail](/decisions/smtp-provider.md) - dedicated Gmail account, app password, 20 MiB attachment limit
+* [Mail and settings libraries](/decisions/mail-library.md) - stdlib smtplib until the async worker, pydantic-settings for configuration
 * [Logging with stdlib and structlog](/decisions/logging.md) - stdlib loggers in modules, structlog JSON formatter in the entry point
 * [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md) - in adapters/arxiv/, advisory lock across workers

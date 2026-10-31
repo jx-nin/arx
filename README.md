@@ -14,7 +14,7 @@ uv run pre-commit install
 docker compose up -d   # local Postgres with pgvector
 ```
 
-Settings are read from a local `.env` file (not committed).
+Settings are read from `ARX_*` environment variables or a local `.env` file (not committed); see spec section 12. Secrets never go in `.env`: the SMTP app password lives in the file named by `ARX_SMTP_PASSWORD_FILE`.
 
 ## Development
 

@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "31 October 2026"
-version: "0.6 (Draft)"
+version: "0.7 (Draft)"
 ---
 
 # Document Control
@@ -1331,7 +1331,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py` | M0 |
 | FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 (partial: reject), M1 (downscale option) |
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
-| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 |
+| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 (allowlist), M1 (T9 rate limit) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
 | NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_rate_limiter.py` (property) | M1 |
 | … | … | … | … |

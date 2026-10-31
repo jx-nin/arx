@@ -398,7 +398,7 @@ Layering rules:
 | Images | Pillow | Greyscale conversion, resizing, dithering |
 | Mail | aiosmtplib | Async SMTP with STARTTLS/TLS |
 | Settings | pydantic-settings | Typed configuration from env / secret files |
-| Logging | structlog (JSON) *(integration with stdlib logging open, see Q-13)* | Structured, correlation IDs |
+| Logging | stdlib `logging` in modules; structlog as the JSON formatter in the entry point (Q-13) | Structured, correlation IDs; modules need no logging library |
 | Metrics | prometheus-client | Pull-based metrics |
 | Tracing (optional) | OpenTelemetry SDK | Can be enabled later |
 | Testing | pytest, pytest-asyncio, testcontainers, respx, hypothesis, syrupy | Unit, integration, contract, property and snapshot tests |
@@ -999,6 +999,7 @@ The full threat model is maintained in `docs/threat-model.md` and reviewed at ea
 
 ## 8.1 Logging
 
+- Modules log through `logging.getLogger(__name__)`; the entry point installs structlog's `ProcessorFormatter` on the root handler (Q-13). Plain stdlib formatting is enough until the slice that needs JSON output.
 - JSON logs via structlog to stdout; fields: `ts`, `level`, `event`, `logger`, `request_id` or `job_id`, `job_kind`, `paper_id`, `duration_ms`, `error.type`.
 - Redaction processor removes values of keys matching `password|token|secret|authorization|api_key`.
 - Phase 1: Docker log rotation (10 MB × 5). Phase 2: optional Loki with 14-day retention if memory allows.

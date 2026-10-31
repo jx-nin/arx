@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "31 October 2026"
-version: "0.7 (Draft)"
+version: "0.8 (Draft)"
 ---
 
 # Document Control

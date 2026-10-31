@@ -22,3 +22,4 @@ okf_version: "0.2"
 * [ADR-009 Isolated converter](/decisions/adr-009-converter-isolation.md) - sandboxed document tooling
 * [ADR-010 Python 3.14](/decisions/adr-010-python.md) - newest version all dependencies support
 * [Test-driven development](/decisions/tdd.md) - test-first in every layer, named exceptions, one commit per behaviour
+* [Database driver psycopg 3](/decisions/db-driver.md) - one driver for async app code and sync Alembic/CLI

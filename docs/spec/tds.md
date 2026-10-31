@@ -383,7 +383,7 @@ Layering rules:
 | Web framework | FastAPI + Uvicorn | Async I/O, typed contracts, OpenAPI out of the box |
 | UI | Jinja2 templates + HTMX, minimal CSS (Pico.css or hand-written) | No separate SPA build; ideal for a single-user phone-first UI |
 | Database | PostgreSQL 17 + pgvector | One store for relational data, job queue, full-text and vector search |
-| DB access | SQLAlchemy 2.0 (async, Core + ORM) + asyncpg *(driver open, see Q-11)* | Mature, typed, explicit SQL when needed |
+| DB access | SQLAlchemy 2.0 (async, Core + ORM) + psycopg 3 (Q-11) | Mature, typed, explicit SQL when needed; one driver serves async app code and sync Alembic/CLI |
 | Migrations | Alembic | Standard |
 | Job queue | Custom PostgreSQL queue (`FOR UPDATE SKIP LOCKED`) | No additional infrastructure; transactional enqueue; learning value (ADR-002) |
 | HTTP client | httpx (async) + tenacity | Timeouts, retries, HTTP/2 off for arXiv (single connection) |

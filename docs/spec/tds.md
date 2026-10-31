@@ -197,7 +197,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | FR-DSC-01 | The owner MUST be able to define seed interests as free-text statements (e.g. "fusion reactor plasma control", "graph neural networks for chemistry"). | P0 |
 | FR-DSC-02 | The system MUST rank each day's new papers by relevance using the algorithm in Section 6.4 and present the top *N* (default 20) as the daily feed. | P0 |
-| FR-DSC-03 | The owner MUST be able to give feedback per paper: *interesting*, *not interesting*, *save*, *send to Kindle*. Feedback MUST influence subsequent rankings. | P0 |
+| FR-DSC-03 | The owner MUST be able to give feedback per paper: *interesting*, *not interesting*, *save*, *send to Kindle* (stored as signals `interesting`, `not_interesting`, `saved`, `sent`). Feedback MUST influence subsequent rankings. | P0 |
 | FR-DSC-04 | Each feed entry SHOULD show which seed interest or past paper contributed most to its score. | P1 |
 | FR-DSC-05 | The feed MUST support filtering by category, date range, HTML availability and minimum score. | P1 |
 | FR-DSC-06 | The system SHOULD reserve a configurable share of the feed (default 10%) for "exploration" items outside the owner's usual topics to avoid filter bubbles. | P1 |
@@ -227,7 +227,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-CNV-06 | The owner MUST be able to configure Kindle profiles (name, screen resolution, image DPI, font scale) and select a default. | P1 |
 | FR-CNV-07 | The system MUST be able to produce a digest EPUB bundling several papers with a combined table of contents. | P1 |
 | FR-CNV-08 | Every produced EPUB MUST pass `epubcheck` validation; failures MUST be recorded with diagnostics. | P0 |
-| FR-CNV-09 | Conversion outputs MUST be cached by `(arxiv_id, version, profile_id, converter_version)` and reused. | P0 |
+| FR-CNV-09 | Conversion outputs MUST be cached by `(arxiv_id, version, profile_id, kind, converter_version)` and reused. | P0 |
 | FR-CNV-10 | The owner SHOULD be able to download any converted file from the web UI. | P0 |
 
 ## 3.7 Delivery (DLV)
@@ -327,9 +327,10 @@ Rationale is recorded in ADR-001. Module boundaries are enforced in code (import
 |                  |           |           |           |                                |
 |  domain/ (entities, value objects, ranking, policies — no I/O)                        |
 |                  |           |           |           |                                |
-|  adapters/: arxiv_client  embedder  llm_gateway  epub_builder  mailer  storage  repo   |
+|  adapters/: arxiv_client  embedder  llm_gateway  epub_builder  mailer  storage  repo  |
+|             (arxiv_client includes the rate_limiter, 6.6.1)                           |
 |                                                                                       |
-|  jobs/: queue (Postgres), scheduler, handlers, rate_limiter                           |
+|  jobs/: queue (Postgres), scheduler, handlers                                         |
 +---------------------------------------------------------------------------------------+
          |                |                 |                |               |
      PostgreSQL       arXiv APIs       LLM (LiteLLM)      pandoc /        SMTP relay
@@ -767,7 +768,7 @@ RETURNING job.*;
 |---|---|---|---|---|
 | `harvest` | arxiv | `{category, date}` | `harvest:<cat>:<date>` | Fetches listing, upserts papers |
 | `fetch_paper` | arxiv | `{arxiv_id}` | `fetch:<id>` | On-demand import |
-| `probe_html` | arxiv | `{paper_id}` | `probe:<id>:<ver>` | Determines HTML availability |
+| `probe_html` | arxiv | `{paper_id, version}` | `probe:<id>:<ver>` | Determines HTML availability |
 | `embed` | default | `{paper_ids[]}` | — (upsert) | Batched (32) |
 | `rank` | default | `{date}` | `rank:<date>` | Builds feed |
 | `summarize` | llm | `{paper_id, prompt_version}` | `sum:<id>:<pv>` | Budget-checked |

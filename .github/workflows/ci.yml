@@ -16,6 +16,9 @@ jobs:
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: pandoc/actions/setup@86321b6dd4675f5014c611e05088e10d4939e09e # v1.1.1
+        with:
+          version: 3.7.0.2
       - run: uv sync --locked
       - run: uv run pre-commit run --all-files --show-diff-on-failure
       - run: uv run pytest

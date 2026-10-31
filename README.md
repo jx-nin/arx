@@ -4,7 +4,7 @@ Fetch and read arXiv papers.
 
 Design and requirements: [docs/spec/tds.md](docs/spec/tds.md). Decisions: [docs/knowledge/](docs/knowledge/index.md).
 
-Requires Python 3.14 (pinned in `.python-version`).
+Requires Python 3.14 (pinned in `.python-version`) and [pandoc](https://pandoc.org/installing.html) 3.7 on `PATH` (CI pins 3.7.0.2) for EPUB conversion.
 
 ## Setup
 

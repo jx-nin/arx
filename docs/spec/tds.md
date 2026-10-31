@@ -20,7 +20,7 @@ version: "0.4 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 24 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
+| 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 20 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
 | 0.3 | 2026-10-30 | Section 9.1: test-driven development in every layer with named exceptions; core mechanisms get agent-written tests and owner-written code; TDD steps are not committed separately |
 | 0.2 | 2026-10-30 | Aligned with repository decisions: Python 3.14, mypy instead of pyright, 90% coverage, tests mirror `src/arx/` with level markers, ADRs kept in the OKF knowledge bundle; added open questions Q-7..Q-14 |
 | 0.1 | 2026-10-30 | Initial draft: requirements, architecture, data model, pipelines, security, operations, roadmap |
@@ -237,7 +237,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | FR-DLV-01 | The owner MUST be able to send a single paper to the Kindle with one action. | P0 |
 | FR-DLV-02 | Delivery MUST use e-mail to the configured `@kindle.com` address from an approved sender, with the converted file as attachment. | P0 |
-| FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 24 MiB, below the sending provider's 25 MB limit, see 6.6.3)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
+| FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 20 MiB of raw file, leaving headroom under the sending provider's 25 MB limit, see 6.6.3)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
 | FR-DLV-04 | The owner SHOULD be able to schedule an automatic digest (daily or weekly) containing the top-ranked or explicitly queued papers. | P1 |
 | FR-DLV-05 | The system MUST keep a delivery history (paper(s), file hash, size, timestamp, outcome, error). | P0 |
 | FR-DLV-06 | Transient delivery failures MUST be retried with exponential backoff; permanent failures MUST be surfaced in the UI. | P0 |
@@ -869,6 +869,7 @@ Client requirements:
 - One shared async client per worker, `max_connections = 1`, explicit `User-Agent` identifying the application and a contact e-mail.
 - **Rate limiter:** a token bucket with capacity 1 and refill interval 3 s *(configurable)*, implemented in-process and additionally guarded by a PostgreSQL advisory lock so that a second worker instance cannot violate the limit.
 - Retries on 429/5xx/network errors with backoff (max 5); respect `Retry-After`.
+- M0 exception: the manual walking-skeleton script makes a handful of sequential requests and waits the configured interval between them instead of using the limiter; the limiter replaces the wait in M1.
 - Response parsing is covered by contract tests on recorded fixtures (see 9.2).
 - Metric `arx_arxiv_requests_total{endpoint,status}` and histogram of inter-request spacing.
 
@@ -884,10 +885,10 @@ Client requirements:
 ### 6.6.3 Send to Kindle (SMTP)
 
 - Transport: SMTP submission with STARTTLS (587) or implicit TLS (465); credentials via secret.
-- Provider (Q-4): a dedicated Gmail account used only by Arx, `smtp.gmail.com:587` with STARTTLS and an app password. Gmail accepts attachments up to 25 MB *(verify)*, below the 50 MB that Send to Kindle accepts, so the Gmail limit sets `DELIVERY_MAX_BYTES`. Switching to a transactional provider (own domain with SPF/DKIM) changes configuration only.
+- Provider (Q-4): a dedicated Gmail account used only by Arx, `smtp.gmail.com:587` with STARTTLS and an app password. Gmail limits attachments to 25 MB *(verify)*, below the 50 MB that Send to Kindle accepts, so the Gmail limit sets `ARX_DELIVERY_MAX_BYTES`: 20 MiB of raw file, because base64 encoding grows the message by about a third and the limit may apply to the encoded size. Switching to a transactional provider (own domain with SPF/DKIM) changes configuration only.
 - The sender address MUST be on the Amazon "Approved Personal Document E-mail List"; recipient MUST be in `DELIVERY_ALLOWED_RECIPIENTS`.
 - Message: plain-text body with paper titles; attachment with RFC 2231-encoded filename `<first-author>-<year>-<short-title>.epub` (ASCII-safe).
-- Size check before sending against `DELIVERY_MAX_BYTES` *(default 24 MiB, verify)*.
+- Size check of the raw file before sending against `ARX_DELIVERY_MAX_BYTES` *(default 20 MiB, verify)*.
 - Outcome tracking: SMTP acceptance is recorded as `sent`; Amazon does not provide delivery confirmation to the application.
 
 ## 6.7 API Specification
@@ -1232,7 +1233,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | `ARX_SMTP_PASSWORD_FILE` | `/run/secrets/smtp_password` | Secret |
 | `ARX_DELIVERY_FROM` | — | Approved sender address |
 | `ARX_DELIVERY_ALLOWED_RECIPIENTS` | — | Comma-separated `@kindle.com` addresses |
-| `ARX_DELIVERY_MAX_BYTES` | `25165824` | Attachment limit, 24 MiB below Gmail's 25 MB *(verify)* |
+| `ARX_DELIVERY_MAX_BYTES` | `20971520` | Raw attachment limit, 20 MiB with headroom under Gmail's 25 MB *(verify)* |
 | `ARX_STORAGE_PATH` | `/data/files` | Conversion cache location |
 | `ARX_STORAGE_QUOTA_GB` | `10` | Cache eviction threshold |
 | `ARX_SESSION_SECRET_FILE` | `/run/secrets/session_secret` | Cookie signing key |

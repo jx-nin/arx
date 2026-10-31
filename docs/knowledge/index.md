@@ -24,6 +24,6 @@ okf_version: "0.2"
 * [Test-driven development](/decisions/tdd.md) - test-first in every layer, named exceptions, one commit per behaviour
 * [Database driver psycopg 3](/decisions/db-driver.md) - one driver for async app code and sync Alembic/CLI
 * [Default Kindle profile](/decisions/kindle-profile.md) - Paperwhite 11th gen Signature, 1236 × 1648 px, 300 dpi, greyscale
-* [SMTP provider Gmail](/decisions/smtp-provider.md) - dedicated Gmail account, app password, 24 MiB attachment limit
+* [SMTP provider Gmail](/decisions/smtp-provider.md) - dedicated Gmail account, app password, 20 MiB attachment limit
 * [Logging with stdlib and structlog](/decisions/logging.md) - stdlib loggers in modules, structlog JSON formatter in the entry point
 * [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md) - in adapters/arxiv/, advisory lock across workers

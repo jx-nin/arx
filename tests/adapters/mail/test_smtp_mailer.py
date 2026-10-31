@@ -86,6 +86,7 @@ def test_starttls_verifies_the_server_certificate(
     assert context.check_hostname
 
 
+@pytest.mark.req("FR-DLV-02")
 def test_reads_the_password_file_on_every_send(
     fake_smtp: type[FakeSmtp], password_file: Path
 ) -> None:
@@ -98,6 +99,7 @@ def test_reads_the_password_file_on_every_send(
     assert fake_smtp.instances[1].calls[1][1] == ("u", "rotated")
 
 
+@pytest.mark.req("FR-DLV-02")
 def test_missing_password_file_fails_before_connecting(
     fake_smtp: type[FakeSmtp], tmp_path: Path
 ) -> None:

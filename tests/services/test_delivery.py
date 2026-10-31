@@ -150,6 +150,16 @@ def test_recipient_match_ignores_case() -> None:
 
 
 @pytest.mark.req("FR-DLV-07")
+def test_allowlist_given_in_mixed_case_still_matches() -> None:
+    mailer = FakeMailer()
+    service = DeliveryService(mailer, SENDER, frozenset({"Reader@Kindle.com"}), 1000)
+
+    service.send_epub(make_paper(), EPUB, RECIPIENT)
+
+    assert len(mailer.messages) == 1
+
+
+@pytest.mark.req("FR-DLV-07")
 def test_rejects_recipient_outside_the_allowlist_without_sending() -> None:
     mailer = FakeMailer()
 

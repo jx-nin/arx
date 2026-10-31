@@ -66,12 +66,12 @@ class DeliveryService:
 
         :param mailer: Mailer that submits the message.
         :param sender: Approved sender address (FR-DLV-02).
-        :param allowed_recipients: Lower-cased addresses delivery may send to.
+        :param allowed_recipients: Addresses delivery may send to, any case.
         :param max_bytes: Raw attachment size limit in bytes.
         """
         self._mailer = mailer
         self._sender = sender
-        self._allowed_recipients = allowed_recipients
+        self._allowed_recipients = frozenset(r.lower() for r in allowed_recipients)
         self._max_bytes = max_bytes
 
     def send_epub(self, paper: Paper, epub: bytes, recipient: str) -> None:
@@ -106,7 +106,8 @@ class DeliveryService:
             filename=_attachment_filename(paper),
         )
         self._mailer.send(message)
-        logger.info("Sent %s (%d bytes) to %s", paper.arxiv_id, len(epub), recipient)
+        # The Kindle address is an abuse target (spec 7.2 T9); keep it out of logs.
+        logger.info("Sent %s (%d bytes)", paper.arxiv_id, len(epub))
 
 
 def _attachment_filename(paper: Paper) -> str:
@@ -115,6 +116,7 @@ def _attachment_filename(paper: Paper) -> str:
     :param paper: Paper the attachment holds.
     :returns: An ASCII file name of at most :data:`FILENAME_MAX_CHARS` characters;
         the versioned arXiv ID stands in for an author name without ASCII letters.
+        The surname is the name's last word, so suffixes such as ``Jr.`` win.
     """
     name = paper.authors[0].split() if paper.authors else []
     surname = _slug_words(name[-1]) if name else []

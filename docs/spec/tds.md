@@ -1,8 +1,8 @@
 ---
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
-date: "30 October 2026"
-version: "0.3 (Draft)"
+date: "31 October 2026"
+version: "0.4 (Draft)"
 ---
 
 # Document Control
@@ -11,15 +11,16 @@ version: "0.3 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.3 — Draft |
+| Version | 0.4 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
-| Date | 30 October 2026 |
+| Date | 31 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
 
 ## Revision History
 
 | Version | Date | Change |
 |---|---|---|
+| 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 24 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
 | 0.3 | 2026-10-30 | Section 9.1: test-driven development in every layer with named exceptions; core mechanisms get agent-written tests and owner-written code; TDD steps are not committed separately |
 | 0.2 | 2026-10-30 | Aligned with repository decisions: Python 3.14, mypy instead of pyright, 90% coverage, tests mirror `src/arx/` with level markers, ADRs kept in the OKF knowledge bundle; added open questions Q-7..Q-14 |
 | 0.1 | 2026-10-30 | Initial draft: requirements, architecture, data model, pipelines, security, operations, roadmap |
@@ -1296,22 +1297,22 @@ Implementation guidance for AI-assisted development: core mechanisms (job queue,
 
 ## 15.2 Open Questions
 
-| ID | Question | Resolve by |
-|---|---|---|
-| Q-1 | Which Kindle model/resolution is the default profile? | M0 |
-| Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) |
-| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) |
-| Q-4 | Which SMTP provider will be used as the approved sender? | M0 |
-| Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 |
-| Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 |
-| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 |
-| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 |
-| Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 |
-| Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 |
-| Q-11 | Database driver: spec says asyncpg; the repository already depends on psycopg 3, which also works async with SQLAlchemy and sync for Alembic/CLI. Pick one. | M0 |
-| Q-12 | FR-ENR-04 requires token usage and cost per LLM output, but `paper_summary` has no link to `llm_usage`. Add a foreign key or columns? | M3 |
-| Q-13 | Logging: structlog (8.1) vs. the project rule `logging.getLogger(__name__)`. Proposed: stdlib loggers in modules, structlog only as the JSON formatter configured in the entry point. | M1 |
-| Q-14 | Minor inconsistencies to fix when implementing: `probe_html` dedup key uses `<ver>` but the payload has no version; FR-CNV-09 cache key omits `kind` while the DDL index includes it; FR-DSC-03 says *save* while the `feedback.signal` check says `saved`; the component view (5.2) puts `rate_limiter` under `jobs/`, while 6.1 and Appendix A put it under `adapters/arxiv/`. | M1 |
+| ID | Question | Resolve by | Answer |
+|---|---|---|---|
+| Q-1 | Which Kindle model/resolution is the default profile? | M0 | Paperwhite Signature Edition (11th gen), 1236 × 1648 px, 300 dpi, greyscale (6.5) |
+| Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) | Open |
+| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Open; device: Paperwhite 11 Signature, firmware 5.19.2 |
+| Q-4 | Which SMTP provider will be used as the approved sender? | M0 | Dedicated Gmail account, app password, STARTTLS 587 (6.6.3) |
+| Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
+| Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 | Open |
+| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Open |
+| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Open |
+| Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 | Open |
+| Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 | Open |
+| Q-11 | Database driver: spec says asyncpg; the repository already depends on psycopg 3, which also works async with SQLAlchemy and sync for Alembic/CLI. Pick one. | M0 | psycopg 3 (5.5) |
+| Q-12 | FR-ENR-04 requires token usage and cost per LLM output, but `paper_summary` has no link to `llm_usage`. Add a foreign key or columns? | M3 | Open |
+| Q-13 | Logging: structlog (8.1) vs. the project rule `logging.getLogger(__name__)`. Proposed: stdlib loggers in modules, structlog only as the JSON formatter configured in the entry point. | M1 | Accepted as proposed (5.5, 8.1) |
+| Q-14 | Minor inconsistencies to fix when implementing: `probe_html` dedup key uses `<ver>` but the payload has no version; FR-CNV-09 cache key omits `kind` while the DDL index includes it; FR-DSC-03 says *save* while the `feedback.signal` check says `saved`; the component view (5.2) puts `rate_limiter` under `jobs/`, while 6.1 and Appendix A put it under `adapters/arxiv/`. | M1 | Fixed in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03; rate limiter in `adapters/arxiv/` |
 
 
 # Appendix A. Requirement Traceability Template

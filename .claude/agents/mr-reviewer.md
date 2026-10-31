@@ -22,7 +22,7 @@ Run and report failures verbatim (short):
 - `uv run sphinx-build -q -W docs docs/_build`
 
 Then review by hand:
-- **Spec**: changes match the requirement IDs they cite; core mechanisms (job queue, rate limiter, ranking, conversion pipeline) follow their spec sections exactly; layering rules from spec 5.2 respected.
+- **Spec**: changes match the requirement IDs they cite; a core-mechanism change (job queue, rate limiter, ranking, conversion pipeline) cites its spec section and requirement IDs, and its tests carry those IDs; layering rules from spec 5.2 respected.
 - **Correctness**: bugs, unhandled errors, edge cases, missing or weak tests for changed behaviour.
 - **Project rules**: files under 500 lines, readable over clever, PEP 8 module layout (docstring, imports, constants, code), full type hints, reST docstrings (`:param:`, `:returns:`, `:raises:`) on public API, `logging.getLogger(__name__)` instead of `print` for diagnostics.
 - **Structure**: new modules in the right place under `src/arx/`, tests mirroring them under `tests/`, no stray files, nothing that belongs in `.gitignore`.

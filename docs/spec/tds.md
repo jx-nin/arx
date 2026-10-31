@@ -1080,7 +1080,8 @@ Development follows **test-driven development** in every layer: each behaviour c
 - Trivial changes (renames, documentation, configuration values that do not change specified behaviour) need no new test.
 - Template markup needs no test-first unit test; the route or handler behind it is still test-first, and the end-to-end UI smoke flows (Section 9.2) cover rendering after merge.
 - Migrations are covered by integration tests written after the migration.
-- Agents implement all code test-first, core mechanisms (job queue, rate limiter, ranking, conversion pipeline) included. Review is agentic: every merge request passes the `mr-reviewer` agent, and the owner raises questions and adjustments.
+
+Agents implement all code test-first, core mechanisms (job queue, rate limiter, ranking, conversion pipeline) included. Review is agentic: every merge request passes the `mr-reviewer` agent, and the owner raises questions and adjustments.
 
 Red, green and refactor steps are not separate commits, and commit messages and merge requests do not name them: a commit holds one behaviour with its tests, all checks green.
 

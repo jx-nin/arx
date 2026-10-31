@@ -4,7 +4,7 @@ title: Test-driven development
 description: Every behaviour change is built test-first, with named exceptions; the history only shows finished behaviours.
 tags: [process, testing]
 status: stable
-generated: { by: "agent:claude-opus-5-5", at: 2026-10-30T00:00:00Z }
+generated: { by: "agent:claude-opus-5-5", at: 2026-10-31T00:00:00Z }
 ---
 
 # Decision

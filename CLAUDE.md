@@ -10,7 +10,7 @@
 - `docs/spec/tds.md` is the authoritative spec; for decisions the ADR concepts in `docs/knowledge/decisions/` win. Requirement IDs (`FR-*`, `NFR-*`) go in `@pytest.mark.req("…")`; those plus `ADR-*` and `Q-*` go in commit messages and MR descriptions.
 - A change that alters specified behaviour updates the spec in the same MR and adds a revision-history row.
 - Don't start a slice whose milestone has open questions (spec 15.2) that it depends on; ask first.
-- Core mechanisms are implemented by the owner: job queue, rate limiter, ranking, conversion pipeline. Agents may scaffold, write adapters, tests and config around them, but not their logic.
+- Agents implement all code, core mechanisms included (job queue, rate limiter, ranking, conversion pipeline). Review is agentic (`mr-reviewer`); the owner raises questions and adjustments.
 - Layering (spec 5.2): `domain` imports nothing else; services depend on adapter `Protocol`s; concrete adapters are wired only in `bootstrap.py`; `web`/`api`/`cli` depend only on services.
 
 ## Code
@@ -24,7 +24,7 @@
 ## Tests
 - `pytest` under `tests/`, mirroring the `src/arx/` layout; test level via markers (`integration`, `contract`, `golden`), unmarked = unit. Fixtures in `tests/fixtures/`, eval datasets in `tests/evals/`.
 - Coverage must stay at or above 90% (`fail_under` in `pyproject.toml`); aim higher.
-- Test-first per spec 9.1: every behaviour change in any layer starts with a failing test; a bug fix's first test reproduces the bug. Exceptions and the core-mechanism split are listed there.
+- Test-first per spec 9.1: every behaviour change in any layer starts with a failing test; a bug fix's first test reproduces the bug. Exceptions are listed there.
 - TDD steps are working practice, not history: commit a behaviour with its tests once green, and never name red/green/refactor in commits or MRs.
 
 ## Tooling

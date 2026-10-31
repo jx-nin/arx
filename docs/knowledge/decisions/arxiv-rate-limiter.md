@@ -12,5 +12,5 @@ generated: { by: "agent:claude-opus-5-5", at: 2026-10-31T00:00:00Z }  # decided 
 * Resolves the placement part of Q-14 in the [specification](/specs/tds.md) (v0.4, sections 5.2 and 6.6.1): `src/arx/adapters/arxiv/`, not `jobs/`.
 * The limit is an arXiv policy (NFR-16), and every arXiv request, harvest or conversion fetch, goes through the arXiv client.
 * An in-process token bucket alone cannot stop a second worker; the PostgreSQL advisory lock from 6.6.1 does, so the limiter needs a database connection or lock injected.
-* Core mechanism: the owner implements it in M1; agents write its failing tests.
+* Core mechanism, built in M1 test-first like every other change (spec 9.1).
 * M0's manual script waits the configured interval between requests instead (spec 6.6.1), marked as a `shortcut:` comment.

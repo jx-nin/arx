@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "31 October 2026"
-version: "0.4 (Draft)"
+version: "0.5 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.4 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.4 — Draft |
+| Version | 0.5 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 31 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.4 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.5 | 2026-10-31 | Sections 9.1 and 14: agents implement core mechanisms too; review is agentic (`mr-reviewer`), with questions and adjustments from the owner |
 | 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 20 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
 | 0.3 | 2026-10-30 | Section 9.1: test-driven development in every layer with named exceptions; core mechanisms get agent-written tests and owner-written code; TDD steps are not committed separately |
 | 0.2 | 2026-10-30 | Aligned with repository decisions: Python 3.14, mypy instead of pyright, 90% coverage, tests mirror `src/arx/` with level markers, ADRs kept in the OKF knowledge bundle; added open questions Q-7..Q-14 |
@@ -1079,7 +1080,7 @@ Development follows **test-driven development** in every layer: each behaviour c
 - Trivial changes (renames, documentation, configuration values that do not change specified behaviour) need no new test.
 - Template markup needs no test-first unit test; the route or handler behind it is still test-first, and the end-to-end UI smoke flows (Section 9.2) cover rendering after merge.
 - Migrations are covered by integration tests written after the migration.
-- Core mechanisms (job queue, rate limiter, ranking, conversion pipeline) are implemented by the owner; agents write the failing tests from the requirement IDs, the owner writes the code that passes them.
+- Agents implement all code test-first, core mechanisms (job queue, rate limiter, ranking, conversion pipeline) included. Review is agentic: every merge request passes the `mr-reviewer` agent, and the owner raises questions and adjustments.
 
 Red, green and refactor steps are not separate commits, and commit messages and merge requests do not name them: a commit holds one behaviour with its tests, all checks green.
 
@@ -1277,7 +1278,7 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 | **M7 — DAST & hardening** | OWASP ZAP in pipeline, threat model review, container hardening audit, performance tests | No high-risk ZAP findings; NFR-01..05 verified | 1 week |
 | **M8 — Extras (P1/P2)** | Digests, PDF fallback, Kindle profiles, collections, BibTeX export, clippings import, RAG assistant (LangGraph) | Feature-specific acceptance tests pass | ongoing |
 
-Implementation guidance for AI-assisted development: core mechanisms (job queue, rate limiter, ranking, conversion pipeline) SHOULD be implemented by the owner directly; agents MAY be used for scaffolding, adapters, tests and configuration (for core mechanisms, the failing tests first; see Section 9.1). Each milestone SHOULD be broken into spec changes referencing the requirement IDs in this document.
+Implementation guidance for AI-assisted development: agents implement scoped changes, core mechanisms included, test-first (Section 9.1); the `mr-reviewer` agent reviews every merge request and the owner raises questions and adjustments. Each milestone SHOULD be broken into spec changes referencing the requirement IDs in this document.
 
 
 # 15. Risks and Open Questions

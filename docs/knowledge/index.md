@@ -9,6 +9,7 @@ okf_version: "0.2"
 # Components
 
 * [EPUB conversion](/components/epub-conversion.md) - arXiv HTML to EPUB 3 via pandoc with a Kindle stylesheet (M0)
+* [Kindle delivery](/components/kindle-delivery.md) - EPUB by e-mail over Gmail SMTP, recipient allowlist and size limit (M0)
 
 # Decisions
 

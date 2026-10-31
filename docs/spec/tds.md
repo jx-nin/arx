@@ -11,7 +11,7 @@ version: "0.6 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.6 — Draft |
+| Version | 0.7 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 31 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.6 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
 | 0.6 | 2026-10-31 | Section 6.5.1 steps 3 and 9: drop LaTeXML front matter repeated on the title page; pandoc builds without its own title page, language `en`; M0 implements step 3 without heading normalisation; Appendix A: FR-CNV-01 test paths and milestones |
 | 0.5 | 2026-10-31 | Sections 9.1 and 14: agents implement core mechanisms too; review is agentic (`mr-reviewer`), with questions and adjustments from the owner |
 | 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 20 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
@@ -400,7 +401,7 @@ Layering rules:
 | EPUB validation | epubcheck (Java, in conversion image) | Industry-standard validator |
 | PDF fallback | k2pdfopt | Purpose-built PDF reflow for e-readers |
 | Images | Pillow | Greyscale conversion, resizing, dithering |
-| Mail | aiosmtplib | Async SMTP with STARTTLS/TLS |
+| Mail | stdlib `smtplib`; aiosmtplib once the worker is async (M1) | SMTP with STARTTLS; services are synchronous in M0, so no extra dependency yet |
 | Settings | pydantic-settings | Typed configuration from env / secret files |
 | Logging | stdlib `logging` in modules; structlog as the JSON formatter in the entry point (Q-13) | Structured, correlation IDs; modules need no logging library |
 | Metrics | prometheus-client | Pull-based metrics |
@@ -886,11 +887,11 @@ Client requirements:
 
 ### 6.6.3 Send to Kindle (SMTP)
 
-- Transport: SMTP submission with STARTTLS (587) or implicit TLS (465); credentials via secret.
+- Transport: SMTP submission with STARTTLS (587) or implicit TLS (465); credentials via secret. M0 implements STARTTLS only; the password file is read on every send, so a rotated secret needs no restart.
 - Provider (Q-4): a dedicated Gmail account used only by Arx, `smtp.gmail.com:587` with STARTTLS and an app password. Gmail limits attachments to 25 MB *(verify)*, below the 50 MB that Send to Kindle accepts, so the Gmail limit sets `ARX_DELIVERY_MAX_BYTES`: 20 MiB of raw file, because base64 encoding grows the message by about a third and the limit may apply to the encoded size. Switching to a transactional provider (own domain with SPF/DKIM) changes configuration only.
-- The sender address MUST be on the Amazon "Approved Personal Document E-mail List"; recipient MUST be in `DELIVERY_ALLOWED_RECIPIENTS`.
-- Message: plain-text body with paper titles; attachment with RFC 2231-encoded filename `<first-author>-<year>-<short-title>.epub` (ASCII-safe).
-- Size check of the raw file before sending against `ARX_DELIVERY_MAX_BYTES` *(default 20 MiB, verify)*.
+- The sender address MUST be on the Amazon "Approved Personal Document E-mail List"; recipient MUST be in `ARX_DELIVERY_ALLOWED_RECIPIENTS`. Addresses are compared case-insensitively; settings refuse to load when the list is empty or holds an address outside `@kindle.com`.
+- Message: plain-text body with paper titles; subject is the title on one line; attachment with RFC 2231-encoded filename `<first-author>-<year>-<short-title>.epub` (ASCII-safe): the first author's last name, the year first published and the first five title words, accents folded to ASCII, lower-case, other characters dropped, joined with hyphens, at most 80 characters. The versioned arXiv ID (`/` replaced by `-`) stands in when the author name has no ASCII letters.
+- Size check of the raw file before sending against `ARX_DELIVERY_MAX_BYTES` *(default 20 MiB, verify)*; a larger file is rejected without connecting, with its size and the limit in the message. The downscale option (FR-DLV-03) follows in M1 with image processing.
 - Outcome tracking: SMTP acceptance is recorded as `sent`; Amazon does not provide delivery confirmation to the application.
 
 ## 6.7 API Specification
@@ -1232,7 +1233,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | `ARX_LLM_MODEL` | provider-specific | LiteLLM model string |
 | `ARX_LLM_MONTHLY_BUDGET_USD` | `5` | Hard cap |
 | `ARX_LLM_API_KEY_FILE` | `/run/secrets/llm_api_key` | Secret |
-| `ARX_SMTP_HOST` / `_PORT` / `_USERNAME` | — | SMTP submission |
+| `ARX_SMTP_HOST` / `_PORT` / `_USERNAME` | `smtp.gmail.com` / `587` / — | SMTP submission (STARTTLS) |
 | `ARX_SMTP_PASSWORD_FILE` | `/run/secrets/smtp_password` | Secret |
 | `ARX_DELIVERY_FROM` | — | Approved sender address |
 | `ARX_DELIVERY_ALLOWED_RECIPIENTS` | — | Comma-separated `@kindle.com` addresses |
@@ -1327,7 +1328,10 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
+| FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py` | M0 |
+| FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 (partial: reject), M1 (downscale option) |
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
+| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
 | NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_rate_limiter.py` (property) | M1 |
 | … | … | … | … |

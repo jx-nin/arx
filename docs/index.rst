@@ -15,3 +15,12 @@ arx
 
 .. automodule:: arx.adapters.conversion.epub_builder
    :members:
+
+.. automodule:: arx.settings
+   :members:
+
+.. automodule:: arx.services.delivery
+   :members:
+
+.. automodule:: arx.adapters.mail.smtp_mailer
+   :members:

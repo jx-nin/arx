@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "31 October 2026"
-version: "0.5 (Draft)"
+version: "0.6 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.5 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.5 — Draft |
+| Version | 0.6 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 31 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.5 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.6 | 2026-10-31 | Section 6.5.1 steps 3 and 9: drop LaTeXML front matter repeated on the title page; pandoc builds without its own title page, language `en`; M0 implements step 3 without heading normalisation; Appendix A: FR-CNV-01 test paths and milestones |
 | 0.5 | 2026-10-31 | Sections 9.1 and 14: agents implement core mechanisms too; review is agentic (`mr-reviewer`), with questions and adjustments from the owner |
 | 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 20 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
 | 0.3 | 2026-10-30 | Section 9.1: test-driven development in every layer with named exceptions; core mechanisms get agent-written tests and owner-written code; TDD steps are not committed separately |
@@ -829,13 +830,13 @@ The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite
 |---|---|---|
 | 1 | Fetch | GET HTML rendition and its assets (images, CSS ignored). URL allowlist: arXiv HTML host only. Rate-limited through the arXiv limiter. Max response size 25 MB; timeout 60 s. |
 | 2 | Sanitise | Parse with lxml; remove scripts, iframes, forms, event handlers, external links in `src`; normalise with nh3 allowlist. |
-| 3 | Clean structure | Remove arXiv page chrome (header, footer, navigation, "report issue" widgets, theme toggles). Keep `<article>` content. Normalise heading levels (h1 = title, h2 = sections). |
+| 3 | Clean structure | Remove arXiv page chrome (header, footer, navigation, "report issue" widgets, theme toggles). Keep `<article>` content without the LaTeXML front matter the title page repeats (title, authors, abstract). Normalise heading levels (h1 = title, h2 = sections; deferred from M0 to M1). |
 | 4 | Mathematics | Extract TeX from MathML `alttext`/annotation. Render via MathJax sidecar to SVG, rasterise to PNG at profile DPI; inline maths scaled to x-height, display maths centred. Cache by `sha256(tex + profile)`. Fallback when rendering fails: keep TeX source in monospace. |
 | 5 | Figures | Download, convert to 8-bit greyscale, resize to profile width minus margins, optionally apply Floyd–Steinberg dithering for line art. Keep captions. |
 | 6 | Tables | Measure column count/estimated width; tables exceeding the threshold are rendered to PNG (headless rendering in converter image); others kept as HTML with compact CSS. |
 | 7 | References & links | Convert in-document citations to internal EPUB links; strip external hyperlinks except DOI/arXiv links in references. |
 | 8 | Front matter | Generate title page: title, authors, arXiv ID + version, dates, licence, abstract, LLM summary (if any, clearly labelled). |
-| 9 | Build | `pandoc --from html --to epub3 --toc --toc-depth=2 --css kindle.css --metadata …` |
+| 9 | Build | `pandoc --from html --to epub3 --toc --toc-depth=2 --epub-title-page=false --css kindle.css --metadata lang=en --metadata …` (step 8 supplies the title page) |
 | 10 | Validate | Run `epubcheck`; errors → `conversion.status = failed` with diagnostics; warnings stored. |
 | 11 | Store | Write to storage under `conversions/<arxiv_id>/v<ver>/<profile>/<converter_version>.epub`; record SHA-256 and size. |
 
@@ -1324,7 +1325,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 |---|---|---|---|
 | FR-ING-02 | 5.3, 6.3.4, 6.6.1 | `tests/jobs/handlers/test_harvest.py::test_daily_harvest_idempotent` (`integration`) | M1 |
 | FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
-| FR-CNV-01 | 6.5.1 | `tests/adapters/conversion/test_epub_builder.py` (`golden`) | M1 |
+| FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |

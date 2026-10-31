@@ -6,6 +6,10 @@ okf_version: "0.2"
 
 * [Technical Design Specification](/specs/tds.md) - authoritative requirements and design, source in `docs/spec/tds.md`
 
+# Components
+
+* [EPUB conversion](/components/epub-conversion.md) - arXiv HTML to EPUB 3 via pandoc with a Kindle stylesheet (M0)
+
 # Decisions
 
 * [Tooling stack](/decisions/tooling.md) - ruff + mypy --strict + pytest-cov + sphinx, enforced by pre-commit and CI

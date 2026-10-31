@@ -1,8 +1,8 @@
 ---
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
-date: "30 October 2026"
-version: "0.3 (Draft)"
+date: "31 October 2026"
+version: "0.4 (Draft)"
 ---
 
 # Document Control
@@ -11,15 +11,16 @@ version: "0.3 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.3 — Draft |
+| Version | 0.4 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
-| Date | 30 October 2026 |
+| Date | 31 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
 
 ## Revision History
 
 | Version | Date | Change |
 |---|---|---|
+| 0.4 | 2026-10-31 | Answered Q-1 (default profile Paperwhite 11 Signature, 6.5), Q-4 (dedicated Gmail account, 6.6.3; attachment limit default 20 MiB), Q-11 (psycopg 3, 5.5), Q-13 (stdlib loggers with structlog formatter, 5.5, 8.1) and Q-14 (fixes in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03); added an Answer column to 15.2 |
 | 0.3 | 2026-10-30 | Section 9.1: test-driven development in every layer with named exceptions; core mechanisms get agent-written tests and owner-written code; TDD steps are not committed separately |
 | 0.2 | 2026-10-30 | Aligned with repository decisions: Python 3.14, mypy instead of pyright, 90% coverage, tests mirror `src/arx/` with level markers, ADRs kept in the OKF knowledge bundle; added open questions Q-7..Q-14 |
 | 0.1 | 2026-10-30 | Initial draft: requirements, architecture, data model, pipelines, security, operations, roadmap |
@@ -197,7 +198,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | FR-DSC-01 | The owner MUST be able to define seed interests as free-text statements (e.g. "fusion reactor plasma control", "graph neural networks for chemistry"). | P0 |
 | FR-DSC-02 | The system MUST rank each day's new papers by relevance using the algorithm in Section 6.4 and present the top *N* (default 20) as the daily feed. | P0 |
-| FR-DSC-03 | The owner MUST be able to give feedback per paper: *interesting*, *not interesting*, *save*, *send to Kindle*. Feedback MUST influence subsequent rankings. | P0 |
+| FR-DSC-03 | The owner MUST be able to give feedback per paper: *interesting*, *not interesting*, *save*, *send to Kindle* (stored as signals `interesting`, `not_interesting`, `saved`, `sent`). Feedback MUST influence subsequent rankings. | P0 |
 | FR-DSC-04 | Each feed entry SHOULD show which seed interest or past paper contributed most to its score. | P1 |
 | FR-DSC-05 | The feed MUST support filtering by category, date range, HTML availability and minimum score. | P1 |
 | FR-DSC-06 | The system SHOULD reserve a configurable share of the feed (default 10%) for "exploration" items outside the owner's usual topics to avoid filter bubbles. | P1 |
@@ -227,7 +228,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-CNV-06 | The owner MUST be able to configure Kindle profiles (name, screen resolution, image DPI, font scale) and select a default. | P1 |
 | FR-CNV-07 | The system MUST be able to produce a digest EPUB bundling several papers with a combined table of contents. | P1 |
 | FR-CNV-08 | Every produced EPUB MUST pass `epubcheck` validation; failures MUST be recorded with diagnostics. | P0 |
-| FR-CNV-09 | Conversion outputs MUST be cached by `(arxiv_id, version, profile_id, converter_version)` and reused. | P0 |
+| FR-CNV-09 | Conversion outputs MUST be cached by `(arxiv_id, version, profile_id, kind, converter_version)` and reused. | P0 |
 | FR-CNV-10 | The owner SHOULD be able to download any converted file from the web UI. | P0 |
 
 ## 3.7 Delivery (DLV)
@@ -236,7 +237,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | FR-DLV-01 | The owner MUST be able to send a single paper to the Kindle with one action. | P0 |
 | FR-DLV-02 | Delivery MUST use e-mail to the configured `@kindle.com` address from an approved sender, with the converted file as attachment. | P0 |
-| FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 50 MB)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
+| FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 20 MiB of raw file, leaving headroom under the sending provider's 25 MB limit, see 6.6.3)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
 | FR-DLV-04 | The owner SHOULD be able to schedule an automatic digest (daily or weekly) containing the top-ranked or explicitly queued papers. | P1 |
 | FR-DLV-05 | The system MUST keep a delivery history (paper(s), file hash, size, timestamp, outcome, error). | P0 |
 | FR-DLV-06 | Transient delivery failures MUST be retried with exponential backoff; permanent failures MUST be surfaced in the UI. | P0 |
@@ -327,9 +328,10 @@ Rationale is recorded in ADR-001. Module boundaries are enforced in code (import
 |                  |           |           |           |                                |
 |  domain/ (entities, value objects, ranking, policies — no I/O)                        |
 |                  |           |           |           |                                |
-|  adapters/: arxiv_client  embedder  llm_gateway  epub_builder  mailer  storage  repo   |
+|  adapters/: arxiv_client  embedder  llm_gateway  epub_builder  mailer  storage  repo  |
+|             (arxiv_client includes the rate_limiter, 6.6.1)                           |
 |                                                                                       |
-|  jobs/: queue (Postgres), scheduler, handlers, rate_limiter                           |
+|  jobs/: queue (Postgres), scheduler, handlers                                         |
 +---------------------------------------------------------------------------------------+
          |                |                 |                |               |
      PostgreSQL       arXiv APIs       LLM (LiteLLM)      pandoc /        SMTP relay
@@ -383,7 +385,7 @@ Layering rules:
 | Web framework | FastAPI + Uvicorn | Async I/O, typed contracts, OpenAPI out of the box |
 | UI | Jinja2 templates + HTMX, minimal CSS (Pico.css or hand-written) | No separate SPA build; ideal for a single-user phone-first UI |
 | Database | PostgreSQL 17 + pgvector | One store for relational data, job queue, full-text and vector search |
-| DB access | SQLAlchemy 2.0 (async, Core + ORM) + asyncpg *(driver open, see Q-11)* | Mature, typed, explicit SQL when needed |
+| DB access | SQLAlchemy 2.0 (async, Core + ORM) + psycopg 3 (Q-11) | Mature, typed, explicit SQL when needed; one driver serves async app code and sync Alembic/CLI |
 | Migrations | Alembic | Standard |
 | Job queue | Custom PostgreSQL queue (`FOR UPDATE SKIP LOCKED`) | No additional infrastructure; transactional enqueue; learning value (ADR-002) |
 | HTTP client | httpx (async) + tenacity | Timeouts, retries, HTTP/2 off for arXiv (single connection) |
@@ -398,7 +400,7 @@ Layering rules:
 | Images | Pillow | Greyscale conversion, resizing, dithering |
 | Mail | aiosmtplib | Async SMTP with STARTTLS/TLS |
 | Settings | pydantic-settings | Typed configuration from env / secret files |
-| Logging | structlog (JSON) *(integration with stdlib logging open, see Q-13)* | Structured, correlation IDs |
+| Logging | stdlib `logging` in modules; structlog as the JSON formatter in the entry point (Q-13) | Structured, correlation IDs; modules need no logging library |
 | Metrics | prometheus-client | Pull-based metrics |
 | Tracing (optional) | OpenTelemetry SDK | Can be enabled later |
 | Testing | pytest, pytest-asyncio, testcontainers, respx, hypothesis, syrupy | Unit, integration, contract, property and snapshot tests |
@@ -767,7 +769,7 @@ RETURNING job.*;
 |---|---|---|---|---|
 | `harvest` | arxiv | `{category, date}` | `harvest:<cat>:<date>` | Fetches listing, upserts papers |
 | `fetch_paper` | arxiv | `{arxiv_id}` | `fetch:<id>` | On-demand import |
-| `probe_html` | arxiv | `{paper_id}` | `probe:<id>:<ver>` | Determines HTML availability |
+| `probe_html` | arxiv | `{paper_id, version}` | `probe:<id>:<ver>` | Determines HTML availability |
 | `embed` | default | `{paper_ids[]}` | — (upsert) | Batched (32) |
 | `rank` | default | `{date}` | `rank:<date>` | Builds feed |
 | `summarize` | llm | `{paper_id, prompt_version}` | `sum:<id>:<pv>` | Budget-checked |
@@ -818,6 +820,8 @@ decay(age) = 0.5 ^ (age_days / 60)    # half-life 60 days
 
 ## 6.5 Conversion Pipeline
 
+The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite Signature Edition (11th generation), 1236 × 1648 px, `image_dpi` 300, greyscale. The migration that creates `kindle_profile` seeds it with `is_default = TRUE`. Margins subtracted from the figure width (6.5.1 step 5) are tuned during the device test (Q-3).
+
 ### 6.5.1 HTML → EPUB (primary path)
 
 | Step | Operation | Details |
@@ -865,6 +869,7 @@ Client requirements:
 - One shared async client per worker, `max_connections = 1`, explicit `User-Agent` identifying the application and a contact e-mail.
 - **Rate limiter:** a token bucket with capacity 1 and refill interval 3 s *(configurable)*, implemented in-process and additionally guarded by a PostgreSQL advisory lock so that a second worker instance cannot violate the limit.
 - Retries on 429/5xx/network errors with backoff (max 5); respect `Retry-After`.
+- M0 exception: the manual walking-skeleton script makes a handful of sequential requests and waits the configured interval between them instead of using the limiter; the limiter replaces the wait in M1.
 - Response parsing is covered by contract tests on recorded fixtures (see 9.2).
 - Metric `arx_arxiv_requests_total{endpoint,status}` and histogram of inter-request spacing.
 
@@ -880,9 +885,10 @@ Client requirements:
 ### 6.6.3 Send to Kindle (SMTP)
 
 - Transport: SMTP submission with STARTTLS (587) or implicit TLS (465); credentials via secret.
+- Provider (Q-4): a dedicated Gmail account used only by Arx, `smtp.gmail.com:587` with STARTTLS and an app password. Gmail limits attachments to 25 MB *(verify)*, below the 50 MB that Send to Kindle accepts, so the Gmail limit sets `ARX_DELIVERY_MAX_BYTES`: 20 MiB of raw file, because base64 encoding grows the message by about a third and the limit may apply to the encoded size. Switching to a transactional provider (own domain with SPF/DKIM) changes configuration only.
 - The sender address MUST be on the Amazon "Approved Personal Document E-mail List"; recipient MUST be in `DELIVERY_ALLOWED_RECIPIENTS`.
 - Message: plain-text body with paper titles; attachment with RFC 2231-encoded filename `<first-author>-<year>-<short-title>.epub` (ASCII-safe).
-- Size check before sending against `DELIVERY_MAX_BYTES` *(default 50 MB, verify)*.
+- Size check of the raw file before sending against `ARX_DELIVERY_MAX_BYTES` *(default 20 MiB, verify)*.
 - Outcome tracking: SMTP acceptance is recorded as `sent`; Amazon does not provide delivery confirmation to the application.
 
 ## 6.7 API Specification
@@ -996,6 +1002,7 @@ The full threat model is maintained in `docs/threat-model.md` and reviewed at ea
 
 ## 8.1 Logging
 
+- Modules log through `logging.getLogger(__name__)`; the entry point installs structlog's `ProcessorFormatter` on the root handler (Q-13). Plain stdlib formatting is enough until the slice that needs JSON output.
 - JSON logs via structlog to stdout; fields: `ts`, `level`, `event`, `logger`, `request_id` or `job_id`, `job_kind`, `paper_id`, `duration_ms`, `error.type`.
 - Redaction processor removes values of keys matching `password|token|secret|authorization|api_key`.
 - Phase 1: Docker log rotation (10 MB × 5). Phase 2: optional Loki with 14-day retention if memory allows.
@@ -1226,7 +1233,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | `ARX_SMTP_PASSWORD_FILE` | `/run/secrets/smtp_password` | Secret |
 | `ARX_DELIVERY_FROM` | — | Approved sender address |
 | `ARX_DELIVERY_ALLOWED_RECIPIENTS` | — | Comma-separated `@kindle.com` addresses |
-| `ARX_DELIVERY_MAX_BYTES` | `52428800` | Attachment limit *(verify)* |
+| `ARX_DELIVERY_MAX_BYTES` | `20971520` | Raw attachment limit, 20 MiB with headroom under Gmail's 25 MB *(verify)* |
 | `ARX_STORAGE_PATH` | `/data/files` | Conversion cache location |
 | `ARX_STORAGE_QUOTA_GB` | `10` | Cache eviction threshold |
 | `ARX_SESSION_SECRET_FILE` | `/run/secrets/session_secret` | Cookie signing key |
@@ -1291,22 +1298,22 @@ Implementation guidance for AI-assisted development: core mechanisms (job queue,
 
 ## 15.2 Open Questions
 
-| ID | Question | Resolve by |
-|---|---|---|
-| Q-1 | Which Kindle model/resolution is the default profile? | M0 |
-| Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) |
-| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) |
-| Q-4 | Which SMTP provider will be used as the approved sender? | M0 |
-| Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 |
-| Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 |
-| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 |
-| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 |
-| Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 |
-| Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 |
-| Q-11 | Database driver: spec says asyncpg; the repository already depends on psycopg 3, which also works async with SQLAlchemy and sync for Alembic/CLI. Pick one. | M0 |
-| Q-12 | FR-ENR-04 requires token usage and cost per LLM output, but `paper_summary` has no link to `llm_usage`. Add a foreign key or columns? | M3 |
-| Q-13 | Logging: structlog (8.1) vs. the project rule `logging.getLogger(__name__)`. Proposed: stdlib loggers in modules, structlog only as the JSON formatter configured in the entry point. | M1 |
-| Q-14 | Minor inconsistencies to fix when implementing: `probe_html` dedup key uses `<ver>` but the payload has no version; FR-CNV-09 cache key omits `kind` while the DDL index includes it; FR-DSC-03 says *save* while the `feedback.signal` check says `saved`; the component view (5.2) puts `rate_limiter` under `jobs/`, while 6.1 and Appendix A put it under `adapters/arxiv/`. | M1 |
+| ID | Question | Resolve by | Answer |
+|---|---|---|---|
+| Q-1 | Which Kindle model/resolution is the default profile? | M0 | Paperwhite Signature Edition (11th gen), 1236 × 1648 px, 300 dpi, greyscale (6.5) |
+| Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) | Open |
+| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Open; device: Paperwhite 11 Signature, firmware 5.19.2 |
+| Q-4 | Which SMTP provider will be used as the approved sender? | M0 | Dedicated Gmail account, app password, STARTTLS 587 (6.6.3) |
+| Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
+| Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 | Open |
+| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Open |
+| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Open |
+| Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 | Open |
+| Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 | Open |
+| Q-11 | Database driver: spec says asyncpg; the repository already depends on psycopg 3, which also works async with SQLAlchemy and sync for Alembic/CLI. Pick one. | M0 | psycopg 3 (5.5) |
+| Q-12 | FR-ENR-04 requires token usage and cost per LLM output, but `paper_summary` has no link to `llm_usage`. Add a foreign key or columns? | M3 | Open |
+| Q-13 | Logging: structlog (8.1) vs. the project rule `logging.getLogger(__name__)`. Proposed: stdlib loggers in modules, structlog only as the JSON formatter configured in the entry point. | M1 | Accepted as proposed (5.5, 8.1) |
+| Q-14 | Minor inconsistencies to fix when implementing: `probe_html` dedup key uses `<ver>` but the payload has no version; FR-CNV-09 cache key omits `kind` while the DDL index includes it; FR-DSC-03 says *save* while the `feedback.signal` check says `saved`; the component view (5.2) puts `rate_limiter` under `jobs/`, while 6.1 and Appendix A put it under `adapters/arxiv/`. | M1 | Fixed in 5.2, 6.3.4, FR-CNV-09, FR-DSC-03; rate limiter in `adapters/arxiv/` |
 
 
 # Appendix A. Requirement Traceability Template

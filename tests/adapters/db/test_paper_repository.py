@@ -2,7 +2,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, select, update
 
 from arx.adapters.db.models import PaperRow
 from arx.adapters.db.paper_repository import PaperRepository
@@ -39,7 +39,6 @@ def count_rows(engine: Engine) -> int:
         return connection.scalar(select(func.count()).select_from(PaperRow)) or 0
 
 
-@pytest.mark.req("FR-ING-03")
 def test_a_stored_paper_reads_back_unchanged(store: PaperStore) -> None:
     store.upsert(V1)
 
@@ -77,3 +76,26 @@ def test_an_older_version_does_not_overwrite_the_newer(store: PaperStore) -> Non
     store.upsert(V1)
 
     assert store.get("2401.01234") == V2
+
+
+@pytest.mark.req("FR-ING-03")
+def test_a_newer_version_keeps_the_doi_and_resets_html_availability(
+    store: PaperStore, engine: Engine
+) -> None:
+    store.upsert(V1)
+    with engine.begin() as connection:
+        connection.execute(
+            update(PaperRow).values(
+                doi="10.1000/xyz",
+                html_status="available",
+                html_checked_at=datetime(2024, 1, 4, tzinfo=UTC),
+            )
+        )
+
+    store.upsert(V2)
+
+    with engine.connect() as connection:
+        row = connection.execute(
+            select(PaperRow.doi, PaperRow.html_status, PaperRow.html_checked_at)
+        ).one()
+    assert tuple(row) == ("10.1000/xyz", "unknown", None)

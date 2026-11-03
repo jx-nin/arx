@@ -15,5 +15,5 @@ generated: { by: "agent:claude-opus-5-5", at: 2026-11-03T00:00:00Z }
 * `bootstrap.py`: `build_engine` reads the URL file and always selects the psycopg 3 driver ([database driver](/decisions/db-driver.md)); Alembic's `env.py` uses it.
 * `services/papers.py`: `PaperStore` protocol (`upsert`, `get`).
 * `adapters/db/models.py`: SQLAlchemy models mirroring the migrations; an integration test compares them with the migrated schema.
-* `adapters/db/paper_repository.py`: `PaperRepository` upserts on `arxiv_id` and replaces a row only with a newer version; each call commits on its own. Synchronous like the M0 services until the async worker (M1).
+* `adapters/db/paper_repository.py`: `PaperRepository` upserts on `arxiv_id` and replaces a row only with a newer version, resetting `html_status` (availability is per version); each call commits on its own. Synchronous like the M0 services until the async worker (M1).
 * Tests: `tests/adapters/db/` (`integration`), on the `pgvector/pgvector:pg17` image from `compose.yaml` via testcontainers ([test layout](/decisions/test-layout.md)).

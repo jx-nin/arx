@@ -683,7 +683,7 @@ M0 implementation notes:
 - The first Alembic migration creates only `paper`; the other tables, and `CREATE EXTENSION vector`, come with the slices that use them.
 - `paper.primary_category` is nullable until the harvest (M1) fills it: `arx kindle` and `arx send` do not know it. The harvest slice backfills it and makes it `NOT NULL`.
 - `authors` holds `{"name": …, "affiliation": null}` until a metadata source with affiliations is added.
-- A paper is stored once per `arxiv_id` (FR-ING-07); storing it again is an upsert that replaces the row only with a newer version, so reruns change nothing (FR-ING-03). Columns the domain `Paper` does not carry (`doi`, `journal_ref`, `html_status`, `html_checked_at`) keep their stored values.
+- A paper is stored once per `arxiv_id` (FR-ING-07); storing it again is an upsert that replaces the row only with a newer version, so reruns change nothing (FR-ING-03). A newer version keeps `doi` and `journal_ref`, which the domain `Paper` does not carry yet, and resets `html_status` to `unknown` and `html_checked_at` to null, since HTML availability is per version.
 - SQLAlchemy models in `adapters/db/models.py` mirror the migrations; an integration test fails when they differ.
 
 ### 6.2.3 Data Retention

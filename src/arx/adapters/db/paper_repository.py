@@ -27,6 +27,7 @@ class PaperRepository:
     def upsert(self, paper: Paper) -> None:
         """Store a paper unless the same or a newer version is already stored.
 
+        A newer version resets the HTML availability, which is per version.
         Each call commits on its own.
 
         :param paper: Paper to store.
@@ -34,9 +35,11 @@ class PaperRepository:
         """
         values = _to_row(paper)
         statement = insert(PaperRow).values(values)
+        newer = {key: value for key, value in values.items() if key != "arxiv_id"}
+        newer |= {"html_status": "unknown", "html_checked_at": None}
         statement = statement.on_conflict_do_update(
             index_elements=[PaperRow.arxiv_id],
-            set_=values,
+            set_=newer,
             where=PaperRow.latest_version < statement.excluded.latest_version,
         )
         with self._engine.begin() as connection:

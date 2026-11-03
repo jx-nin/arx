@@ -88,6 +88,22 @@ def test_writes_maths_as_mathml_keeping_the_tex(epub: zipfile.ZipFile) -> None:
     assert 'class="math' not in chapters
 
 
+@pytest.mark.req("FR-CNV-02")
+def test_keeps_unconvertible_tex_as_text_and_logs_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    html = (
+        '<p><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>x</mi>'
+        '<annotation encoding="application/x-tex">\\authormacro{x}</annotation>'
+        "</semantics></math></p>"
+    )
+    with caplog.at_level(logging.WARNING):
+        epub = zipfile.ZipFile(BytesIO(PandocEpubBuilder().build(html, PAPER)))
+
+    assert "\\authormacro{x}" in read(epub, ".xhtml")
+    assert "Could not convert TeX math" in caplog.text
+
+
 @pytest.mark.req("FR-CNV-01")
 def test_logs_pandoc_warnings(caplog: pytest.LogCaptureFixture) -> None:
     with caplog.at_level(logging.WARNING):

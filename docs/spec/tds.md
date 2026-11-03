@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "3 November 2026"
-version: "0.9 (Draft)"
+version: "0.10 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.9 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.9 — Draft |
+| Version | 0.10 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 3 November 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.9 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 6.6.1 (search request, rate limit, `arx search`), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -165,7 +166,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | Ingestion | ING | Category subscriptions, daily harvest, on-demand import by ID/URL, deduplication, version tracking |
 | Enrichment | ENR | Embeddings, LLM "plain-language" summaries, keyword extraction, HTML availability detection |
-| Discovery | DSC | Interest profile, ranking, daily feed, feedback loop, explanations, filters |
+| Discovery | DSC | Interest profile, ranking, daily feed, feedback loop, explanations, filters, keyword search of arXiv |
 | Library | LIB | Statuses, tags, notes, collections, full-text and semantic search, export |
 | Conversion | CNV | HTML→EPUB, math rendering, figure/table handling, PDF fallback, Kindle profiles, digests |
 | Delivery | DLV | Send to Kindle, scheduled digests, delivery history, retries |
@@ -185,7 +186,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-ING-05 | The system MUST store, per paper: arXiv ID, latest version, title, authors, abstract, primary and cross-list categories, submission and update dates, DOI and journal reference when present, licence, and links. | P0 |
 | FR-ING-06 | The system SHOULD detect new versions of papers in the library and flag them. | P1 |
 | FR-ING-07 | Cross-listed papers appearing in several subscribed categories MUST be stored once. | P0 |
-| FR-ING-08 | The system MAY support keyword-based saved searches (arXiv API query) in addition to categories. | P2 |
+| FR-ING-08 | The system MAY support saved searches: a stored FR-DSC-08 query that runs with the daily harvest and feeds its new matches into ranking, in addition to categories. | P2 |
 
 ## 3.3 Enrichment (ENR)
 
@@ -208,6 +209,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-DSC-05 | The feed MUST support filtering by category, date range, HTML availability and minimum score. | P1 |
 | FR-DSC-06 | The system SHOULD reserve a configurable share of the feed (default 10%) for "exploration" items outside the owner's usual topics to avoid filter bubbles. | P1 |
 | FR-DSC-07 | The owner MUST be able to find similar papers to any given paper ("more like this"). | P1 |
+| FR-DSC-08 | The owner MUST be able to search all of arXiv by keyword (arXiv API `search_query`, 6.6.1), not only stored papers (FR-LIB-04). Each result MUST show whether the paper already exists in Arx: *sent* (date of the last sent delivery that carried it, alone or in a digest) and *library* (with its status), both when both apply, otherwise *stored* (harvested or imported only); a result without a marker is new to Arx. From each result the owner MUST be able to import or send the paper (FR-ING-04, FR-DLV-01). | P0 |
 
 ## 3.5 Library (LIB)
 
@@ -866,6 +868,7 @@ Conversion tools (pandoc, Node/MathJax, k2pdfopt, epubcheck) run in a dedicated 
 |---|---|---|
 | Daily listing | RSS/Atom feeds per category or API query by `submittedDate` *(verify which is more reliable)* | Configurable base URLs |
 | Metadata lookup | arXiv API (`/api/query?id_list=`) | Batch up to 100 IDs per request |
+| Keyword search | arXiv API (`/api/query?search_query=&start=&max_results=&sortBy=relevance`) | One request per result page; FR-DSC-08 |
 | HTML availability | `GET`/`HEAD` on HTML rendition URL | 404 → `unavailable` |
 | Full text | HTML rendition; PDF | For conversion only |
 
@@ -876,6 +879,7 @@ Client requirements:
 - Retries on 429/5xx/network errors with backoff (max 5); respect `Retry-After`.
 - M0 exception: the manual walking-skeleton script makes a handful of sequential requests and waits the configured interval between them instead of using the limiter; the limiter replaces the wait in M1.
 - M0 command (FR-ING-04, FR-DLV-01): `arx kindle REF --to ADDR` accepts an arXiv ID (`2401.01234`, `2401.01234v2`, `arXiv:…`, old-style `hep-th/9901001`) or an `arxiv.org/abs|pdf|html/…` URL; without a version it takes the latest. It checks the recipient first, looks the paper up with `id_list`, downloads `arxiv.org/html/<id>v<n>`, converts (6.5.1) and mails (6.6.3). An unknown paper or a 404 rendition exits with status 1 and the reason; the PDF path (FR-CNV-05) follows later. The API carries no licence, so the title page omits it until a source that has it is added. Requests use a synchronous client that follows redirects until the async worker (M1); endpoints are fixed until `ARX_ARXIV_*_BASE` arrive in M1.
+- Keyword search (FR-DSC-08, M1 after the `paper` table exists): `arx search TERMS… [--start N] [--limit N]` turns plain terms into `all:` terms joined with `AND` and passes terms with a field prefix (`ti:`, `au:`, `abs:`, `cat:`) through unchanged; `--limit` defaults to 20, at most 50. Each page is one API request through the shared rate limiter, including its advisory lock, so an interactive search never runs closer than the configured interval to a worker request (NFR-16). Results are not stored; the marker comes from one lookup of the page's arXiv IDs (without version) in `paper`, `library_item` and the conversions of sent deliveries. Output is one line per result: versioned ID, marker, title, first author, year. A malformed query (API error entry) exits with status 1 and the reason. The UI Search view (6.8) follows in M3.
 - Response parsing is covered by contract tests on recorded fixtures (see 9.2).
 - Metric `arx_arxiv_requests_total{endpoint,status}` and histogram of inter-request spacing.
 
@@ -909,6 +913,7 @@ All JSON endpoints are under `/api/v1`, documented via generated OpenAPI. HTML (
 | GET | `/api/v1/papers/{id}` | Paper detail incl. summary, conversions, library state | — |
 | GET | `/api/v1/papers/{id}/similar?limit=` | More like this | FR-DSC-07 |
 | POST | `/api/v1/papers/import` | Body: `{reference}` (ID or URL) → 202 + job id | FR-ING-04 |
+| GET | `/api/v1/search?q=&start=&limit=` | Keyword search of arXiv, each result with its in-Arx marker | FR-DSC-08 |
 | GET | `/api/v1/library?status=&tag=&collection=&q=&mode=keyword\|semantic` | Library listing & search | FR-LIB-01/04 |
 | PUT | `/api/v1/library/{paper_id}` | Upsert library item (status) | FR-LIB-01 |
 | DELETE | `/api/v1/library/{paper_id}` | Remove from library | — |
@@ -941,6 +946,7 @@ Conventions:
 | Today | Ranked cards: title, authors (first 3), categories, score badge, plain-language summary, "why" line, HTML availability icon | Interesting / Not interesting, Save, Send to Kindle, expand abstract |
 | Paper | Full metadata, abstract, summary, similar papers, conversions, delivery history, notes | Convert, download, send, tag, note |
 | Library | Filterable list (status, tag, collection), search box with keyword/semantic toggle | Bulk status change, add to collection, send as digest |
+| Search | Keyword search of all of arXiv (FR-DSC-08); cards like Today with a *sent* / *library* / *stored* badge | Import, Send to Kindle, next page |
 | Deliveries | History with status and errors | Retry |
 | Settings | Subscriptions, interests (with live preview of matching recent papers), schedules, Kindle profiles, delivery, LLM budget | — |
 | Jobs | Queue state, failures with stack-trace excerpt | Retry, cancel |
@@ -1276,9 +1282,9 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 | Milestone | Scope | Exit criteria (Definition of Done) | Est. |
 |---|---|---|---|
 | **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then fetch yesterday's papers for one category; convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
-| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with maths/figures), deliver; epubcheck; delivery history; minimal UI (feed list, send button) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
+| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with maths/figures), deliver; epubcheck; delivery history; `arx search` over all of arXiv with in-Arx marker (FR-DSC-08, once `paper` exists); minimal UI (feed list, send button) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
 | **M2 — Secure CI/CD** | Full PR pipeline (SAST, SCA, secrets, coverage gate), image build/scan/SBOM/sign, GHCR, automated deploy to homelab staging (Compose) | A PR with a planted secret or critical CVE is blocked; signed images deployed automatically | 1 week |
-| **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
+| **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), Search view over arXiv (FR-DSC-08, FR-UI-02), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
 | **M4 — Kubernetes & GitOps** | k3s via Ansible; Helm chart; Argo CD; Sealed Secrets; NetworkPolicies; Kyverno policies | Push to `main` → staging updated by Argo CD without manual steps; unsigned image rejected | 2 weeks |
 | **M5 — Observability** | Metrics, dashboards, alerts, runbooks, push notifications | Simulated failure (stop SMTP) produces alert and runbook-guided recovery | 1 week |
 | **M6 — Cloud & backups** | Terraform (AWS or Azure) for backup storage, OIDC for CI, budgets; backup CronJob; automated restore test | Successful restore from cloud backup within RTO | 1 week |
@@ -1339,7 +1345,8 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
 | FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/services/test_kindle.py`, `tests/test_settings.py`, `tests/cli/test_main.py` | M0 (allowlist), M1 (T9 rate limit) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
-| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property) | M0 (partial: fixed wait), M1 (limiter) |
+| FR-DSC-08 | 6.6.1, 6.7, 6.8 | `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_search.py`, `tests/cli/test_main.py` | M1 (CLI), M3 (Search view) |
+| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property, incl. CLI search beside a worker) | M0 (partial: fixed wait), M1 (limiter) |
 | … | … | … | … |
 
 The full matrix is generated by CI from `@pytest.mark.req` markers.

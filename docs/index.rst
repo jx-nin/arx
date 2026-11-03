@@ -7,6 +7,9 @@ arx
 .. automodule:: arx.domain.paper
    :members:
 
+.. automodule:: arx.domain.arxiv_id
+   :members:
+
 .. automodule:: arx.services.conversion
    :members:
 
@@ -23,6 +26,12 @@ arx
    :members:
 
 .. automodule:: arx.adapters.mail.smtp_mailer
+   :members:
+
+.. automodule:: arx.services.kindle
+   :members:
+
+.. automodule:: arx.adapters.arxiv.client
    :members:
 
 .. automodule:: arx.bootstrap

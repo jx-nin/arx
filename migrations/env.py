@@ -11,7 +11,7 @@ from arx.settings import DatabaseSettings
 if context.is_offline_mode():
     raise SystemExit("Offline mode (--sql) is not supported; run against a database.")
 
-# Entry point of the alembic CLI: show which revisions run. No-op under pytest.
+# Entry point of the alembic CLI: show which revisions run.
 logging.basicConfig(format="%(levelname)-5.5s [%(name)s] %(message)s")
 logging.getLogger("alembic").setLevel(logging.INFO)
 

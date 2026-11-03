@@ -12,8 +12,9 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 KINDLE_DOMAIN = "@kindle.com"
-# Both settings classes read one .env, so each ignores the other's variables.
-ENV = SettingsConfigDict(env_prefix="ARX_", env_file=".env", extra="ignore")
+# Both settings classes read one .env, so each ignores the other's variables;
+# a misspelt optional key is therefore ignored too.
+ARX_ENV_CONFIG = SettingsConfigDict(env_prefix="ARX_", env_file=".env", extra="ignore")
 
 
 class Settings(BaseSettings):
@@ -32,7 +33,7 @@ class Settings(BaseSettings):
         Arx and the sender address as contact.
     """
 
-    model_config = ENV
+    model_config = ARX_ENV_CONFIG
 
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
@@ -75,6 +76,6 @@ class DatabaseSettings(BaseSettings):
         (``postgresql://user:password@host/db``), which includes the password.
     """
 
-    model_config = ENV
+    model_config = ARX_ENV_CONFIG
 
     database_url_file: Path = Path("/run/secrets/database_url")

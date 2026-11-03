@@ -73,6 +73,7 @@ def build_engine(settings: DatabaseSettings) -> Engine:
     :param settings: Database configuration.
     :returns: An engine that connects lazily, on first use.
     :raises OSError: If the URL file cannot be read.
+    :raises sqlalchemy.exc.ArgumentError: If the file does not hold a valid URL.
     """
     url = make_url(settings.database_url_file.read_text().strip())
     # A plain postgresql:// URL would select psycopg2, which is not installed.

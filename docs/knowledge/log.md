@@ -2,7 +2,7 @@
 
 ## 2026-11-03
 
-* Spec moves to v0.9. Added [arXiv client and send by ID or URL](/components/arxiv-client.md): reference parser, arXiv API and HTML client, `KindleService`, `arx kindle` CLI command.
+* Spec moves to v0.9. Added [arXiv client and send by ID or URL](/components/arxiv-client.md): reference parser, arXiv API and HTML client, `KindleService`, `arx kindle` CLI command. Updated [Kindle delivery](/components/kindle-delivery.md) with `check_recipient`.
 
 ## 2026-10-31
 

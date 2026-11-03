@@ -25,10 +25,10 @@ arx
 .. automodule:: arx.services.delivery
    :members:
 
-.. automodule:: arx.adapters.mail.smtp_mailer
+.. automodule:: arx.services.kindle
    :members:
 
-.. automodule:: arx.services.kindle
+.. automodule:: arx.adapters.mail.smtp_mailer
    :members:
 
 .. automodule:: arx.adapters.arxiv.client

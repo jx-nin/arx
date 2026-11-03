@@ -86,3 +86,21 @@ def test_reads_settings_from_an_env_file(
 
     assert settings.delivery_from == "arx.sender@gmail.com"
     assert settings.delivery_max_bytes == 1000
+
+
+@pytest.mark.req("NFR-16")
+def test_arxiv_requests_default_to_three_seconds_apart(
+    env: pytest.MonkeyPatch,
+) -> None:
+    settings = load()
+
+    assert settings.arxiv_min_interval_s == 3.0
+    assert settings.arxiv_user_agent is None
+
+
+@pytest.mark.req("NFR-16")
+def test_arxiv_interval_cannot_be_negative(env: pytest.MonkeyPatch) -> None:
+    env.setenv("ARX_ARXIV_MIN_INTERVAL_S", "-1")
+
+    with pytest.raises(ValidationError, match="arxiv_min_interval_s"):
+        load()

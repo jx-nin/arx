@@ -1,8 +1,19 @@
 """Composition root: builds services with their concrete adapters (spec 5.2)."""
 
+from importlib.metadata import version
+
+import httpx
+
+from arx.adapters.arxiv.client import ArxivClient
+from arx.adapters.conversion.epub_builder import PandocEpubBuilder
+from arx.adapters.conversion.html_cleaner import LatexmlHtmlCleaner
 from arx.adapters.mail.smtp_mailer import SmtpMailer
+from arx.services.conversion import ConversionService
 from arx.services.delivery import DeliveryService
+from arx.services.kindle import KindleService
 from arx.settings import Settings
+
+ARXIV_TIMEOUT_SECONDS = 30.0
 
 
 def build_delivery_service(settings: Settings) -> DeliveryService:
@@ -22,4 +33,34 @@ def build_delivery_service(settings: Settings) -> DeliveryService:
         settings.delivery_from,
         settings.delivery_allowed_recipients,
         settings.delivery_max_bytes,
+    )
+
+
+def build_arxiv_client(settings: Settings) -> ArxivClient:
+    """Build the arXiv client with an identifying ``User-Agent`` (spec 6.6.1).
+
+    :param settings: Loaded configuration.
+    :returns: A client that spaces requests by the configured interval.
+    """
+    user_agent = settings.arxiv_user_agent or (
+        f"arx/{version('arx')} (mailto:{settings.delivery_from})"
+    )
+    # shortcut: never closed, fine for one CLI run; close it when the worker owns it.
+    http = httpx.Client(
+        headers={"User-Agent": user_agent},
+        timeout=ARXIV_TIMEOUT_SECONDS,
+        follow_redirects=True,
+    )
+    return ArxivClient(http, settings.arxiv_min_interval_s)
+
+
+def build_kindle_service(settings: Settings) -> KindleService:
+    """Build the send-to-Kindle service from arXiv, pandoc and SMTP adapters.
+
+    :param settings: Loaded configuration.
+    :returns: A service that fetches, converts and mails one paper.
+    """
+    conversion = ConversionService(LatexmlHtmlCleaner(), PandocEpubBuilder())
+    return KindleService(
+        build_arxiv_client(settings), conversion, build_delivery_service(settings)
     )

@@ -16,6 +16,14 @@ docker compose up -d   # local Postgres with pgvector
 
 Settings are read from `ARX_*` environment variables or a local `.env` file (not committed); see spec section 12. Secrets never go in `.env`: the SMTP app password lives in the file named by `ARX_SMTP_PASSWORD_FILE`.
 
+## Send a paper to the Kindle
+
+```bash
+uv run arx kindle https://arxiv.org/abs/2401.01234 --to you@kindle.com
+```
+
+Takes an arXiv ID (`2401.01234`, `2401.01234v2`) or an `arxiv.org/abs|pdf|html` URL, fetches the HTML version, converts it to EPUB and mails it. Papers without an HTML version are not supported yet.
+
 ## Send an EPUB to the Kindle
 
 ```bash

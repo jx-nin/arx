@@ -1,8 +1,8 @@
 ---
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
-date: "31 October 2026"
-version: "0.8 (Draft)"
+date: "3 November 2026"
+version: "0.9 (Draft)"
 ---
 
 # Document Control
@@ -11,15 +11,16 @@ version: "0.8 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.8 — Draft |
+| Version | 0.9 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
-| Date | 31 October 2026 |
+| Date | 3 November 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
 
 ## Revision History
 
 | Version | Date | Change |
 |---|---|---|
+| 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
 | 0.6 | 2026-10-31 | Section 6.5.1 steps 3 and 9: drop LaTeXML front matter repeated on the title page; pandoc builds without its own title page, language `en`; M0 implements step 3 without heading normalisation; Appendix A: FR-CNV-01 test paths and milestones |
@@ -874,6 +875,7 @@ Client requirements:
 - **Rate limiter:** a token bucket with capacity 1 and refill interval 3 s *(configurable)*, implemented in-process and additionally guarded by a PostgreSQL advisory lock so that a second worker instance cannot violate the limit.
 - Retries on 429/5xx/network errors with backoff (max 5); respect `Retry-After`.
 - M0 exception: the manual walking-skeleton script makes a handful of sequential requests and waits the configured interval between them instead of using the limiter; the limiter replaces the wait in M1.
+- M0 command (FR-ING-04, FR-DLV-01): `arx kindle REF --to ADDR` accepts an arXiv ID (`2401.01234`, `2401.01234v2`, `arXiv:…`, old-style `hep-th/9901001`) or an `arxiv.org/abs|pdf|html/…` URL; without a version it takes the latest. It checks the recipient first, looks the paper up with `id_list`, downloads `arxiv.org/html/<id>v<n>`, converts (6.5.1) and mails (6.6.3). An unknown paper or a 404 rendition exits with status 1 and the reason; the PDF path (FR-CNV-05) follows later. The API carries no licence, so the title page omits it until a source that has it is added. Requests use a synchronous client that follows redirects until the async worker (M1); endpoints are fixed until `ARX_ARXIV_*_BASE` arrive in M1.
 - Response parsing is covered by contract tests on recorded fixtures (see 9.2).
 - Metric `arx_arxiv_requests_total{endpoint,status}` and histogram of inter-request spacing.
 
@@ -1226,7 +1228,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | `ARX_DATABASE_URL` | — (secret file) | PostgreSQL DSN |
 | `ARX_TIMEZONE` | `Europe/Warsaw` | Scheduling timezone |
 | `ARX_ARXIV_MIN_INTERVAL_S` | `3.0` | Minimum spacing between arXiv requests *(verify)* |
-| `ARX_ARXIV_USER_AGENT` | `arx/<ver> (+contact)` | Identifying User-Agent |
+| `ARX_ARXIV_USER_AGENT` | `arx/<ver> (mailto:<ARX_DELIVERY_FROM>)` | Identifying User-Agent |
 | `ARX_ARXIV_API_BASE` / `_RSS_BASE` / `_HTML_BASE` | arXiv defaults | Endpoint base URLs *(verify)* |
 | `ARX_HARVEST_CRON` | `30 6 * * 1-5` | Daily harvest schedule (arXiv announces on weekdays) |
 | `ARX_FEED_SIZE` | `20` | Items in daily feed |
@@ -1273,7 +1275,7 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 
 | Milestone | Scope | Exit criteria (Definition of Done) | Est. |
 |---|---|---|---|
-| **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: fetch yesterday's papers for one category; convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
+| **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then fetch yesterday's papers for one category; convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
 | **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with maths/figures), deliver; epubcheck; delivery history; minimal UI (feed list, send button) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
 | **M2 — Secure CI/CD** | Full PR pipeline (SAST, SCA, secrets, coverage gate), image build/scan/SBOM/sign, GHCR, automated deploy to homelab staging (Compose) | A PR with a planted secret or critical CVE is blocked; signed images deployed automatically | 1 week |
 | **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
@@ -1328,14 +1330,16 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 |---|---|---|---|
 | FR-ING-02 | 5.3, 6.3.4, 6.6.1 | `tests/jobs/handlers/test_harvest.py::test_daily_harvest_idempotent` (`integration`) | M1 |
 | FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
+| FR-ING-04 | 6.6.1 | `tests/domain/test_arxiv_id.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (ID and URL, HTML path), M1 (stored in the library) |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
+| FR-DLV-01 | 6.6.1 | `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (CLI), M1 (UI) |
 | FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py`, `tests/test_bootstrap.py`, `tests/cli/test_main.py` | M0 |
 | FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py`, `tests/test_bootstrap.py` | M0 (partial: reject), M1 (downscale option) |
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
-| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/test_settings.py`, `tests/cli/test_main.py` | M0 (allowlist), M1 (T9 rate limit) |
+| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/services/test_kindle.py`, `tests/test_settings.py`, `tests/cli/test_main.py` | M0 (allowlist), M1 (T9 rate limit) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
-| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_rate_limiter.py` (property) | M1 |
+| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property) | M0 (partial: fixed wait), M1 (limiter) |
 | … | … | … | … |
 
 The full matrix is generated by CI from `@pytest.mark.req` markers.

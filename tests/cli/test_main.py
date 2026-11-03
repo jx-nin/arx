@@ -3,10 +3,12 @@ from email.message import EmailMessage
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
 from arx.cli.main import main
 
+FIXTURES = Path(__file__).parents[1] / "fixtures"
 RECIPIENT = "reader@kindle.com"
 
 
@@ -176,3 +178,64 @@ def test_send_rejects_a_malformed_date(
         main(args)
 
     assert "YYYY-MM-DD" in capsys.readouterr().err
+
+
+@pytest.fixture
+def arxiv(smtp: MagicMock, monkeypatch: pytest.MonkeyPatch) -> dict[str, bytes]:
+    """Serve arXiv paths from this dict; unknown paths are 404."""
+    pages = {
+        "/api/query": (FIXTURES / "arxiv" / "api_2401.01234.xml").read_bytes(),
+        "/html/2401.01234v1": (
+            FIXTURES / "conversion" / "arxiv_minimal.html"
+        ).read_bytes(),
+    }
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        if request.url.path not in pages:
+            return httpx.Response(404)
+        return httpx.Response(200, content=pages[request.url.path])
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    monkeypatch.setenv("ARX_ARXIV_MIN_INTERVAL_S", "0")
+    return pages
+
+
+@pytest.mark.req("FR-ING-04")
+@pytest.mark.req("FR-DLV-01")
+def test_kindle_converts_and_mails_the_paper_at_a_url(
+    smtp: MagicMock, arxiv: dict[str, bytes]
+) -> None:
+    main(["kindle", "https://arxiv.org/abs/2401.01234", "--to", RECIPIENT])
+
+    message = sent_message(smtp)
+    [attachment] = message.iter_attachments()
+    assert message["Subject"].startswith("Mixture cure semiparametric")
+    assert attachment.get_filename() == (
+        "li-2024-mixture-cure-semiparametric-additive-hazard.epub"
+    )
+    assert attachment.get_content().startswith(b"PK")
+
+
+@pytest.mark.req("FR-ING-04")
+def test_kindle_without_html_rendition_exits_with_the_reason(
+    smtp: MagicMock, arxiv: dict[str, bytes]
+) -> None:
+    del arxiv["/html/2401.01234v1"]
+
+    with pytest.raises(SystemExit, match="no HTML rendition"):
+        main(["kindle", "2401.01234", "--to", RECIPIENT])
+
+    smtp.assert_not_called()
+
+
+@pytest.mark.req("FR-ING-04")
+def test_kindle_with_an_unparsable_reference_exits_with_the_reason(
+    smtp: MagicMock, arxiv: dict[str, bytes]
+) -> None:
+    with pytest.raises(SystemExit, match="not an arXiv ID"):
+        main(["kindle", "https://example.com/paper", "--to", RECIPIENT])

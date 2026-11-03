@@ -11,7 +11,7 @@
 - A change that alters specified behaviour updates the spec in the same MR and adds a revision-history row.
 - Don't start a slice whose milestone has open questions (spec 15.2) that it depends on; ask first.
 - Agents implement all code, core mechanisms included (job queue, rate limiter, ranking, conversion pipeline). Review is agentic (`mr-reviewer`); the owner raises questions and adjustments.
-- Layering (spec 5.2): `domain` imports nothing else; services depend on adapter `Protocol`s; concrete adapters are wired only in `bootstrap.py`; `web`/`api`/`cli` depend only on services.
+- Layering (spec 5.2): `domain` imports nothing else; services depend on adapter `Protocol`s; concrete adapters are wired only in `bootstrap.py`; `web`/`api`/`cli` depend on services and `domain`; their entry points may also import `bootstrap` and `settings` to build them.
 
 ## Code
 - Readable over clever: prefer the clearer version even when it is longer.

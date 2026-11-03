@@ -49,6 +49,6 @@ uv run arx send paper.epub --to you@kindle.com --id 2401.01234v2 \
 
 ```bash
 uv run pre-commit run --all-files   # ruff format, ruff check, mypy --strict
-uv run pytest                       # integration tests need Docker (testcontainers)
+uv run pytest                       # integration tests need Docker (testcontainers; WSL: enable Docker Desktop's WSL integration)
 uv run sphinx-build docs docs/_build
 ```

@@ -20,7 +20,7 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with a non-empty queue. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`), 14 (digests move from M8 to M1), Appendix A |
+| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with at least one sendable queued paper. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`, `ARX_DIGEST_RECIPIENT`), 14 (digests move from M8 to M1), Appendix A. `build_digest` is keyed by its delivery (6.3.4); a failure hook on `dead`/`cancelled` fails the delivery and releases its items (6.3.3); `fetch_paper` can queue after import; `delivery_item` cascades with its conversion |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -210,7 +210,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-DSC-05 | The feed MUST support filtering by category, date range, HTML availability and minimum score. | P1 |
 | FR-DSC-06 | The system SHOULD reserve a configurable share of the feed (default 10%) for "exploration" items outside the owner's usual topics to avoid filter bubbles. | P1 |
 | FR-DSC-07 | The owner MUST be able to find similar papers to any given paper ("more like this"). | P1 |
-| FR-DSC-08 | The owner MUST be able to search all of arXiv by keyword (arXiv API `search_query`, 6.6.1), not only stored papers (FR-LIB-04). Each result MUST show whether the paper already exists in Arx: *sent* (date of the last sent delivery that carried it, alone or in a digest) and *library* (with its status), both when both apply, otherwise *stored* (harvested or imported only); a result without a marker is new to Arx. From each result the owner MUST be able to import or send the paper (FR-ING-04, FR-DLV-01). | P0 |
+| FR-DSC-08 | The owner MUST be able to search all of arXiv by keyword (arXiv API `search_query`, 6.6.1), not only stored papers (FR-LIB-04). Each result MUST show whether the paper already exists in Arx: *sent* (date of the last sent delivery that carried it, alone or in a digest) and *library* (with its status), both when both apply, otherwise *stored* (harvested or imported only); a result without a marker is new to Arx. From each result the owner MUST be able to send or queue the paper, either of which imports it (FR-ING-04, FR-DLV-01, FR-DLV-08). | P0 |
 
 ## 3.5 Library (LIB)
 
@@ -250,7 +250,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-DLV-05 | The system MUST keep a delivery history (paper(s), file hash, size, timestamp, outcome, error). | P0 |
 | FR-DLV-06 | Transient delivery failures MUST be retried with exponential backoff; permanent failures MUST be surfaced in the UI. | P0 |
 | FR-DLV-07 | Recipient addresses MUST be restricted to an allowlist stored in configuration. | P0 |
-| FR-DLV-08 | The owner MUST be able to add papers to the digest queue (by ID or URL, or from search results, the feed or the library), list it and remove papers from it. A paper is queued at most once. A sent digest removes its papers from the queue; after a permanent failure they stay queued. | P0 |
+| FR-DLV-08 | The owner MUST be able to add papers to the digest queue (by ID or URL, or from search results, the feed or the library), list it and remove papers from it. A paper is queued at most once. A sent digest removes its papers from the queue; after a permanent failure they stay queued, except a paper too large to send on its own (FR-DLV-03), which is removed with a named error. | P0 |
 
 ## 3.8 Assistant (AST)
 
@@ -298,7 +298,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | NFR-05 | Resource | Steady-state memory of all Arx containers (api, worker, database) | < 2.5 GB total; worker peak < 1.5 GB |
 | NFR-06 | Availability | Web UI availability (measured by Uptime Kuma / Prometheus probe) | ≥ 99% monthly (homelab-grade) |
 | NFR-07 | Reliability | Jobs survive process and host restarts without loss | 0 lost jobs; at-least-once execution with idempotent handlers |
-| NFR-08 | Reliability | Scheduled digest delivered | ≥ 95% of scheduled runs with a non-empty queue |
+| NFR-08 | Reliability | Scheduled digest delivered | ≥ 95% of scheduled runs with at least one sendable queued paper |
 | NFR-09 | Security | No service port exposed outside the tailnet / host | Verified by port scan in CI-deployed environment |
 | NFR-10 | Security | Zero known critical vulnerabilities in released images | Gate in CI (Trivy) |
 | NFR-11 | Maintainability | Test line coverage of `src/arx/` | ≥ 90%, enforced by `fail_under` in `pyproject.toml` |
@@ -673,7 +673,7 @@ CREATE TABLE delivery (
 );
 CREATE TABLE delivery_item (
     delivery_id   BIGINT REFERENCES delivery(id) ON DELETE CASCADE,
-    conversion_id BIGINT REFERENCES conversion(id),
+    conversion_id BIGINT REFERENCES conversion(id) ON DELETE CASCADE,
     PRIMARY KEY (delivery_id, conversion_id));
 
 CREATE TABLE digest_queue_item (
@@ -785,6 +785,7 @@ RETURNING job.*;
 - A reaper task resets jobs whose `lease_until < now()` and `status='running'` back to `pending` (crash recovery).
 - On failure: `run_after = now() + min(cap, base * 2^attempts) * (1 ± 0.2 jitter)`; when `attempts >= max_attempts` → `dead`.
 - If a dependency becomes `dead`/`cancelled`, dependants are cancelled transitively.
+- Failure hook: a job kind MAY register a hook that runs in the same transaction as its own transition to `dead` or `cancelled`, including a transitive cancel. `build_digest` and `deliver` use it to mark their delivery `failed` and release its digest queue items (6.5.3).
 - Scheduler: a single loop evaluates `schedule` rows each minute, guarded by a PostgreSQL advisory lock so that only one scheduler fires even if two workers run; it enqueues with `dedup_key = '<name>:<fire_time>'`.
 - Graceful shutdown: on SIGTERM the worker stops dequeuing, waits up to 30 s for running handlers, then releases leases.
 
@@ -793,14 +794,14 @@ RETURNING job.*;
 | Kind | Queue | Payload | Idempotency key | Notes |
 |---|---|---|---|---|
 | `harvest` | arxiv | `{category, date}` | `harvest:<cat>:<date>` | Fetches listing, upserts papers |
-| `fetch_paper` | arxiv | `{arxiv_id}` | `fetch:<id>` | On-demand import |
+| `fetch_paper` | arxiv | `{arxiv_id, queue?}` | `fetch:<id>` | On-demand import; `queue: true` inserts the `digest_queue_item` in the upsert's transaction (FR-DLV-08) |
 | `probe_html` | arxiv | `{paper_id, version}` | `probe:<id>:<ver>` | Determines HTML availability |
 | `embed` | default | `{paper_ids[]}` | — (upsert) | Batched (32) |
 | `rank` | default | `{date}` | `rank:<date>` | Builds feed |
 | `summarize` | llm | `{paper_id, prompt_version}` | `sum:<id>:<pv>` | Budget-checked |
 | `convert` | convert | `{paper_id, version, profile_id, kind}` | cache key | See 6.5 |
 | `digest` | default | `{fire_time}` | `scheduled_digest:<fire_time>` (`<name>:<fire_time>`, 6.3.3) | Fired by the `scheduled_digest` schedule row, seeded from `ARX_DIGEST_CRON` (FR-DLV-04); claims the digest queue, see 6.5.3 |
-| `build_digest` | convert | `{paper_ids[], profile_id}` | `digest:<hash>` | Writes conversion, `digest_part` and `delivery_item` rows; splits oversized digests (6.5.3) |
+| `build_digest` | convert | `{delivery_id, profile_id, paper_ids[]?}` (`paper_ids` only for the ad-hoc digest) | `build_digest:<delivery_id>` | Writes conversion, `digest_part` and `delivery_item` rows; splits oversized digests (6.5.3) |
 | `deliver` | default | `{delivery_id}` | `deliver:<id>` | SMTP |
 | `backup` | default | `{}` | `backup:<date>` | pg_dump → encrypt → upload |
 | `maintenance` | default | `{}` | `maint:<date>` | Retention, cache eviction, VACUUM hints |
@@ -878,11 +879,17 @@ Concatenate cleaned HTML of N papers (each as a top-level part with its own titl
 Digest queue (FR-DLV-04, FR-DLV-08, M1):
 
 - The `digest` job takes the queued papers that are not claimed by a delivery (`digest_queue_item.delivery_id IS NULL`) and whose `html_status` is not `unavailable`, in `added_at` order. If none remain, the job ends without a delivery. Otherwise, in one transaction, it creates the `delivery` row, sets `delivery_id` on the taken items, enqueues `build_digest` with the dependent `deliver`, and marks itself succeeded, so a retry cannot create a second delivery (NFR-07). Papers queued later, and papers claimed by a digest still in flight, wait for the next run.
-- `build_digest` creates the digest conversion(s), `digest_part` rows and `delivery_item` rows in one transaction. A paper whose rendition turns out to be missing (`unknown` → 404) is marked `unavailable`, left out and released (`delivery_id` set back to NULL). When the papers exceed `ARX_DELIVERY_MAX_BYTES`, the digest is split, in queue order, into several EPUBs. Each EPUB gets its own `delivery` and `deliver` job, and its items point at that delivery. When no paper remains, the delivery is marked `failed` with that reason.
-- When a delivery reaches `sent`, its queue items are deleted in the same transaction. After a permanent failure they are released, so they stay queued for the next run. This includes a `build_digest` or `deliver` job that ends `dead` or `cancelled`: it marks the delivery `failed`.
+- The recipient is `ARX_DIGEST_RECIPIENT` (12), which must be on the allowlist (FR-DLV-07).
+- `build_digest` (payload `{delivery_id, profile_id}`) reads its papers from the queue items claimed by that delivery. In one transaction it creates the digest conversion(s), `digest_part` rows and `delivery_item` rows.
+- A paper whose rendition turns out to be missing (`unknown` → 404) is marked `unavailable`, left out and released (`delivery_id` set back to NULL).
+- When the papers exceed `ARX_DELIVERY_MAX_BYTES`, the digest is split, in queue order, into several EPUBs. The first part keeps the claimed delivery and its already-enqueued `deliver` job. Each further part gets a new `delivery` and `deliver` job, and its items are re-pointed to that delivery, all in the same transaction.
+- When no paper remains, `build_digest` marks the delivery `failed` with that reason. A `deliver` job whose delivery is already `failed` ends without sending.
+- When a delivery reaches `sent`, its queue items are deleted in the same transaction. After a permanent failure they are released, so they stay queued for the next run. This includes a `build_digest` or `deliver` job that ends `dead` or `cancelled`: the failure hook (6.3.3) marks the delivery `failed` and releases its items.
+- The ad-hoc digest (`POST /api/v1/deliveries` with `digest: true`) creates its own delivery and passes its papers as `paper_ids[]` in the `build_digest` payload, outside the queue.
 - A paper whose EPUB alone exceeds `ARX_DELIVERY_MAX_BYTES` cannot be split. It is left out, removed from the queue, and named in the digest's message body and in the delivery's `last_error`, so it doesn't fail every later run (FR-DLV-03).
 - Until the PDF path (FR-CNV-05), a paper without an HTML rendition stays queued and is skipped. The message body of each digest names those papers.
-- M1 commands: `arx queue add REF` (imports an unknown paper first, FR-ING-04), `arx queue list`, `arx queue remove REF`; the feed card gets a *Queue* button.
+- M1 commands: `arx queue add REF`, `arx queue list` and `arx queue remove REF`; the feed card gets a *Queue* button. `arx queue add` imports an unknown paper synchronously (FR-ING-04) before queueing it; the API enqueues `fetch_paper` with `queue: true` instead.
+- Removing a claimed item (digest in flight) is refused (API 409). Re-adding a paper that is still claimed changes nothing; once that delivery is sent the paper leaves the queue.
 
 ### 6.5.4 Isolation
 
@@ -953,8 +960,8 @@ All JSON endpoints are under `/api/v1`, documented via generated OpenAPI. HTML (
 | GET | `/api/v1/conversions/{id}/file` | Download output | FR-CNV-10 |
 | POST | `/api/v1/deliveries` | Body: `{paper_ids[], profile_id?, digest: bool}` → 202; `digest` sends the papers now as one digest, outside the queue | FR-DLV-01, FR-CNV-07 |
 | GET | `/api/v1/deliveries?status=` | History | FR-DLV-05 |
-| GET/POST | `/api/v1/digest/queue` | List the digest queue; body `{reference}` (ID or URL) queues a paper, importing it first if unknown (202 + job id); a known paper → 201, one already queued → 200 (idempotent) | FR-DLV-08 |
-| DELETE | `/api/v1/digest/queue/{paper_id}` | Remove from the digest queue | FR-DLV-08 |
+| GET/POST | `/api/v1/digest/queue` | List the digest queue; body `{reference}` (ID or URL) queues a paper, importing it first if unknown (202 + job id; `fetch_paper` with `queue: true`); a known paper → 201, one already queued → 200 (idempotent) | FR-DLV-08 |
+| DELETE | `/api/v1/digest/queue/{paper_id}` | Remove from the digest queue; 409 while a digest in flight claims it | FR-DLV-08 |
 | GET/PUT | `/api/v1/settings/{section}` | Subscriptions, interests, schedules, profiles, delivery, llm | FR-ADM-01 |
 | GET | `/api/v1/jobs?status=&kind=` | Job monitor | FR-ADM-02 |
 | POST | `/api/v1/jobs/{id}/retry` · `/cancel` | Job control | FR-ADM-02 |
@@ -1268,6 +1275,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | `ARX_ARXIV_API_BASE` / `_RSS_BASE` / `_HTML_BASE` | arXiv defaults | Endpoint base URLs *(verify)* |
 | `ARX_HARVEST_CRON` | `30 6 * * 1-5` | Daily harvest schedule (arXiv announces on weekdays) |
 | `ARX_DIGEST_CRON` | `30 7 * * *` | Digest schedule (FR-DLV-04): daily by default, e.g. `30 7 * * 6` for weekly on Saturday |
+| `ARX_DIGEST_RECIPIENT` | first address in `ARX_DELIVERY_ALLOWED_RECIPIENTS` | Kindle address of the scheduled digest; settings refuse to load if it is not on the allowlist |
 | `ARX_FEED_SIZE` | `20` | Items in daily feed |
 | `ARX_EXPLORATION_RATIO` | `0.10` | Share of exploration items |
 | `ARX_EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | fastembed model |
@@ -1377,7 +1385,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-DLV-04 | 5.3, 6.3.4, 6.5.3, 12 | `tests/jobs/handlers/test_digest.py` (`integration`) | M1 |
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
 | FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/services/test_kindle.py`, `tests/test_settings.py`, `tests/cli/test_main.py` | M0 (allowlist), M1 (T9 rate limit) |
-| FR-DLV-08 | 6.2.2, 6.5.3, 6.7 | `tests/services/test_digest_queue.py`, `tests/jobs/handlers/test_digest.py` (`integration`), `tests/cli/test_main.py` | M1 (CLI, feed button), M3 (Search and Library views) |
+| FR-DLV-08 | 6.2.2, 6.5.3, 6.7 | `tests/services/test_digest_queue.py`, `tests/jobs/handlers/test_digest.py` (`integration`), `tests/jobs/test_queue.py::test_dead_digest_job_fails_delivery_and_releases_items` (`integration`), `tests/cli/test_main.py` | M1 (CLI, feed button), M3 (Search and Library views) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
 | FR-DSC-08 | 6.6.1, 6.7, 6.8 | `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_search.py`, `tests/cli/test_main.py` | M1 (CLI), M3 (Search view) |
 | NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property); `tests/adapters/arxiv/test_rate_limiter_lock.py` (`integration`: CLI search beside a worker) | M0 (partial: fixed wait), M1 (limiter) |

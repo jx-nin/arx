@@ -1,3 +1,4 @@
+import re
 import smtplib
 from email.message import EmailMessage
 from pathlib import Path
@@ -284,3 +285,37 @@ def test_today_without_a_feed_exits_with_the_reason(
 ) -> None:
     with pytest.raises(SystemExit, match="no feed for cs.XX"):
         main(["today", "cs.XX"])
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_names_a_missing_first_author(
+    arxiv: dict[str, bytes], capsys: pytest.CaptureFixture[str]
+) -> None:
+    feed = (FIXTURES / "arxiv" / "rss_cs.LG.xml").read_text()
+    arxiv["/rss/cs.LG"] = re.sub(r"<dc:creator>.*?</dc:creator>", "", feed).encode()
+
+    main(["today", "cs.LG"])
+
+    assert capsys.readouterr().out.splitlines()[0].endswith("— unknown author")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_with_an_unknown_category_exits_with_one_line(
+    smtp: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["today", "cs.XX"])
+
+    message = str(exit_info.value.code)
+    assert "400 Bad Request" in message
+    assert "\n" not in message

@@ -245,6 +245,7 @@ def test_announcements_of_a_day_without_announcement_are_empty() -> None:
     assert client.announcements("cs.LG") == []
 
 
+@pytest.mark.contract
 @pytest.mark.req("FR-ING-02")
 def test_announcements_report_an_item_without_arxiv_id() -> None:
     rss = (FIXTURES / "rss_cs.LG.xml").read_text().replace("oai:arXiv.org:", "")

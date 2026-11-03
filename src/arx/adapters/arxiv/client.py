@@ -122,7 +122,9 @@ class ArxivClient:
                 return None
             response.raise_for_status()
         except httpx.HTTPError as error:
-            raise OSError(f"arXiv request failed: {error}") from error
+            # httpx appends a second line pointing to the MDN status page.
+            reason = str(error).partition("\n")[0]
+            raise OSError(f"arXiv request failed: {reason}") from error
         logger.debug("GET %s -> %d", url, response.status_code)
         return response
 

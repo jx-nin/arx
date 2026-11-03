@@ -163,6 +163,16 @@ def test_server_errors_raise_os_error() -> None:
 
 
 @pytest.mark.req("FR-ING-04")
+def test_error_statuses_are_reported_on_one_line() -> None:
+    client, _ = make_client(responses={"/html/2401.01234v1": httpx.Response(503)})
+
+    with pytest.raises(OSError) as raised:
+        client.html(PAPER)
+
+    assert "\n" not in str(raised.value)
+
+
+@pytest.mark.req("FR-ING-04")
 def test_network_errors_raise_os_error() -> None:
     def fail(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("no route", request=request)

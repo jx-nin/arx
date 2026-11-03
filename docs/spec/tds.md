@@ -20,7 +20,7 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.10 | 2026-11-03 | Answered Q-3: MathML renders on the Paperwhite 11 Signature, so ADR-006 (maths as PNG) is rejected; FR-CNV-02, 5.2, 5.5, 6.1, 6.5.1 steps 4 and 9, 6.5.4, 13, 14 (M1), R-2: maths as MathML via pandoc `--mathml`, no MathJax/resvg. Appendix A: FR-CNV-02 |
+| 0.10 | 2026-11-03 | Answered Q-3: MathML renders on the Paperwhite 11 Signature, so ADR-006 (maths as PNG) is rejected; FR-CNV-02, 5.2, 5.5, 6.1, 6.5.1 steps 4 and 9, 6.5.4, 13, 14 (M1), R-2: maths as MathML via pandoc `--mathml`, no MathJax/resvg. Answered Q-7: tailnet-only access without login until M3, which adds owner login FR-ADM-05 (3.10, 7.2 T1, 14). Appendix A: FR-CNV-02, FR-ADM-05 |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -274,6 +274,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-ADM-02 | The UI MUST show the job queue: pending, running, failed jobs with error details, and allow retrying or cancelling a job. | P1 |
 | FR-ADM-03 | The UI SHOULD show the current month's LLM spend versus budget. | P1 |
 | FR-ADM-04 | The service MUST expose `/healthz` (liveness) and `/readyz` (readiness, incl. database connectivity). | P0 |
+| FR-ADM-05 | The web UI and REST API MUST require an owner login: password checked against an Argon2id hash, session cookie (`Secure`, `HttpOnly`, `SameSite=Strict`), CSRF token on state-changing requests (7.2 T1). Until it lands (M3), access is limited to the tailnet without login (Q-7). | P0 |
 
 ## 3.11 Data Management (DAT)
 
@@ -962,7 +963,7 @@ Implementation notes: server-rendered Jinja templates; HTMX for partial updates;
 
 | # | Threat | Asset / Entry point | Mitigation |
 |---|---|---|---|
-| T1 | Spoofing — unauthorised access to UI/API | Web UI | Tailnet-only exposure; owner login (Argon2id password hash + session cookie: `Secure`, `HttpOnly`, `SameSite=Strict`); optional Tailscale identity headers check (see Q-7) |
+| T1 | Spoofing — unauthorised access to UI/API | Web UI | Tailnet-only exposure, the only control in M1–M2 (Q-7); from M3 owner login (FR-ADM-05: Argon2id password hash + session cookie: `Secure`, `HttpOnly`, `SameSite=Strict`); optional Tailscale identity headers check |
 | T2 | Tampering — malicious HTML/SVG in paper content (XSS, XXE) | Conversion pipeline, UI rendering | nh3 sanitisation; lxml with `resolve_entities=False`, `no_network=True`; templates autoescape; CSP `default-src 'self'` |
 | T3 | Tampering / EoP — exploit in pandoc, k2pdfopt, image libraries via crafted files | Converter | Isolated converter container: non-root, read-only rootfs, no network, seccomp default, dropped capabilities, CPU/memory/time limits; images scanned and pinned by digest |
 | T4 | SSRF via user-supplied import URL or embedded asset URLs | Import endpoint, figure fetcher | Strict parser accepting only arXiv ID patterns / allowlisted hosts; resolved IP must be public; redirects re-validated |
@@ -1277,9 +1278,9 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 | Milestone | Scope | Exit criteria (Definition of Done) | Est. |
 |---|---|---|---|
 | **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then fetch yesterday's papers for one category; convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
-| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with figures and tables; MathML maths since M0), deliver; epubcheck; delivery history; minimal UI (feed list, send button) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
+| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with figures and tables; MathML maths since M0), deliver; epubcheck; delivery history; minimal UI (feed list, send button), reachable over the tailnet only, without login (Q-7) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
 | **M2 — Secure CI/CD** | Full PR pipeline (SAST, SCA, secrets, coverage gate), image build/scan/SBOM/sign, GHCR, automated deploy to homelab staging (Compose) | A PR with a planted secret or critical CVE is blocked; signed images deployed automatically | 1 week |
-| **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
+| **M3 — Discovery & library** | Full web UI (FR-UI-02) with owner login (FR-ADM-05, Q-7); embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
 | **M4 — Kubernetes & GitOps** | k3s via Ansible; Helm chart; Argo CD; Sealed Secrets; NetworkPolicies; Kyverno policies | Push to `main` → staging updated by Argo CD without manual steps; unsigned image rejected | 2 weeks |
 | **M5 — Observability** | Metrics, dashboards, alerts, runbooks, push notifications | Simulated failure (stop SMTP) produces alert and runbook-guided recovery | 1 week |
 | **M6 — Cloud & backups** | Terraform (AWS or Azure) for backup storage, OIDC for CI, budgets; backup CronJob; automated restore test | Successful restore from cloud backup within RTO | 1 week |
@@ -1315,7 +1316,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | Q-4 | Which SMTP provider will be used as the approved sender? | M0 | Dedicated Gmail account, app password, STARTTLS 587 (6.6.3) |
 | Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
 | Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 | Open |
-| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Open |
+| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Tailnet-only, no login, for M1's minimal UI; owner login (FR-ADM-05) arrives in M3 with the full UI (7.2 T1, 14) |
 | Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Open |
 | Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 | Open |
 | Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 | Open |
@@ -1335,6 +1336,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-02 | 6.5.1 steps 4 and 9 | `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set with heavy maths (`golden`) in M1 | M0 (MathML) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
+| FR-ADM-05 | 7.2 T1, 12 | `tests/web/test_auth.py` | M3 |
 | FR-DLV-01 | 6.6.1 | `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (CLI), M1 (UI) |
 | FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py`, `tests/test_bootstrap.py`, `tests/cli/test_main.py` | M0 |
 | FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py`, `tests/test_bootstrap.py` | M0 (partial: reject), M1 (downscale option) |

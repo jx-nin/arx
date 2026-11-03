@@ -20,7 +20,7 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with at least one sendable queued paper. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`, `ARX_DIGEST_RECIPIENT`), 14 (digests move from M8 to M1), Appendix A. `build_digest` is keyed by its delivery (6.3.4); a failure hook on `dead`/`cancelled` fails the delivery and releases its items (6.3.3); `fetch_paper` can queue after import; `delivery_item` cascades with its conversion |
+| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with at least one sendable queued paper. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`, `ARX_DIGEST_RECIPIENT`), 14 (digests move from M8 to M1), Appendix A. `build_digest` is keyed by its delivery (6.3.4); a failure hook on `dead`/`cancelled` fails the delivery and releases its items (6.3.3); `fetch_paper` can queue after import (own key `fetch_queue:<id>`); `delivery_item` cascades with its conversion, and cache eviction keeps conversion rows (6.2.3, FR-DAT-03); only single-paper deliveries are retried (6.5.3, 6.8) |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -284,7 +284,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 |---|---|---|
 | FR-DAT-01 | The database MUST be backed up daily, encrypted client-side, and uploaded to off-site object storage. | P1 |
 | FR-DAT-02 | A documented and tested restore procedure MUST exist; a restore test SHOULD be automated monthly. | P1 |
-| FR-DAT-03 | Converted files are reproducible and therefore SHOULD NOT be backed up; their cache MAY be evicted (LRU) under disk pressure. | P1 |
+| FR-DAT-03 | Converted files are reproducible and therefore SHOULD NOT be backed up; their cache MAY be evicted (LRU) under disk pressure. Eviction removes files only, never conversion or delivery rows (6.2.3). | P1 |
 
 
 # 4. Non-Functional Requirements
@@ -298,7 +298,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | NFR-05 | Resource | Steady-state memory of all Arx containers (api, worker, database) | < 2.5 GB total; worker peak < 1.5 GB |
 | NFR-06 | Availability | Web UI availability (measured by Uptime Kuma / Prometheus probe) | ≥ 99% monthly (homelab-grade) |
 | NFR-07 | Reliability | Jobs survive process and host restarts without loss | 0 lost jobs; at-least-once execution with idempotent handlers |
-| NFR-08 | Reliability | Scheduled digest delivered | ≥ 95% of scheduled runs with at least one sendable queued paper |
+| NFR-08 | Reliability | Scheduled digest delivered | ≥ 95% of scheduled runs with at least one sendable queued paper (unclaimed, and `html_status` not `unavailable` at fire time, 6.5.3) |
 | NFR-09 | Security | No service port exposed outside the tailnet / host | Verified by port scan in CI-deployed environment |
 | NFR-10 | Security | Zero known critical vulnerabilities in released images | Gate in CI (Trivy) |
 | NFR-11 | Maintainability | Test line coverage of `src/arx/` | ≥ 90%, enforced by `fail_under` in `pyproject.toml` |
@@ -374,7 +374,7 @@ Layering rules:
  probe    -> HEAD/GET html rendition (rate-limited) -> store availability
            |
            v
- 07:30  scheduler enqueues  digest  (daily or weekly)  -> snapshot queue -> build_digest -> deliver(digest)
+ 07:30  scheduler enqueues  digest  (daily or weekly)  -> claim queue -> build_digest -> deliver(digest)
 ```
 
 ## 5.4 Runtime View — "Send to Kindle"
@@ -704,7 +704,7 @@ The job queue tables are specified in Section 6.3.
 | Library items, notes, tags | Indefinite |
 | Papers in the digest queue | Kept while queued, whatever the rows above say |
 | Papers carried by a sent delivery | Indefinite (keeps the *sent* marker of FR-DSC-08 and the delivery history of FR-DLV-05) |
-| Conversion files (cache) | LRU eviction above configurable disk quota (default 10 GB) |
+| Conversion files (cache) | LRU eviction above configurable disk quota (default 10 GB). Eviction deletes the stored file and clears `file_key`, but keeps the `conversion`, `digest_part` and `delivery_item` rows (FR-DLV-05, FR-DSC-08) |
 | Jobs (succeeded) | 14 days; failed jobs 90 days |
 | Logs | 14 days on host |
 
@@ -785,7 +785,7 @@ RETURNING job.*;
 - A reaper task resets jobs whose `lease_until < now()` and `status='running'` back to `pending` (crash recovery).
 - On failure: `run_after = now() + min(cap, base * 2^attempts) * (1 ± 0.2 jitter)`; when `attempts >= max_attempts` → `dead`.
 - If a dependency becomes `dead`/`cancelled`, dependants are cancelled transitively.
-- Failure hook: a job kind MAY register a hook that runs in the same transaction as its own transition to `dead` or `cancelled`, including a transitive cancel. `build_digest` and `deliver` use it to mark their delivery `failed` and release its digest queue items (6.5.3).
+- Failure hook: a job kind MAY register a hook that runs in the same transaction as its own transition to `dead` or `cancelled`, including a transitive cancel. `build_digest` and `deliver` use it to mark their delivery `failed`, unless it is already `sent`, and release its digest queue items (6.5.3).
 - Scheduler: a single loop evaluates `schedule` rows each minute, guarded by a PostgreSQL advisory lock so that only one scheduler fires even if two workers run; it enqueues with `dedup_key = '<name>:<fire_time>'`.
 - Graceful shutdown: on SIGTERM the worker stops dequeuing, waits up to 30 s for running handlers, then releases leases.
 
@@ -794,7 +794,7 @@ RETURNING job.*;
 | Kind | Queue | Payload | Idempotency key | Notes |
 |---|---|---|---|---|
 | `harvest` | arxiv | `{category, date}` | `harvest:<cat>:<date>` | Fetches listing, upserts papers |
-| `fetch_paper` | arxiv | `{arxiv_id, queue?}` | `fetch:<id>` | On-demand import; `queue: true` inserts the `digest_queue_item` in the upsert's transaction (FR-DLV-08) |
+| `fetch_paper` | arxiv | `{arxiv_id, queue?}` | `fetch:<id>`; `fetch_queue:<id>` with `queue: true` | On-demand import, idempotent (upsert; queue insert `ON CONFLICT DO NOTHING`); `queue: true` inserts the `digest_queue_item` in the upsert's transaction (FR-DLV-08) |
 | `probe_html` | arxiv | `{paper_id, version}` | `probe:<id>:<ver>` | Determines HTML availability |
 | `embed` | default | `{paper_ids[]}` | — (upsert) | Batched (32) |
 | `rank` | default | `{date}` | `rank:<date>` | Builds feed |
@@ -880,10 +880,11 @@ Digest queue (FR-DLV-04, FR-DLV-08, M1):
 
 - The `digest` job takes the queued papers that are not claimed by a delivery (`digest_queue_item.delivery_id IS NULL`) and whose `html_status` is not `unavailable`, in `added_at` order. If none remain, the job ends without a delivery. Otherwise, in one transaction, it creates the `delivery` row, sets `delivery_id` on the taken items, enqueues `build_digest` with the dependent `deliver`, and marks itself succeeded, so a retry cannot create a second delivery (NFR-07). Papers queued later, and papers claimed by a digest still in flight, wait for the next run.
 - The recipient is `ARX_DIGEST_RECIPIENT` (12), which must be on the allowlist (FR-DLV-07).
-- `build_digest` (payload `{delivery_id, profile_id}`) reads its papers from the queue items claimed by that delivery. In one transaction it creates the digest conversion(s), `digest_part` rows and `delivery_item` rows.
+- `build_digest` (payload `{delivery_id, profile_id}`, plus `paper_ids[]` for the ad-hoc digest below) reads its papers from the queue items claimed by that delivery. In one transaction it creates the digest conversion(s), `digest_part` rows and `delivery_item` rows.
 - A paper whose rendition turns out to be missing (`unknown` → 404) is marked `unavailable`, left out and released (`delivery_id` set back to NULL).
 - When the papers exceed `ARX_DELIVERY_MAX_BYTES`, the digest is split, in queue order, into several EPUBs. The first part keeps the claimed delivery and its already-enqueued `deliver` job. Each further part gets a new `delivery` and `deliver` job, and its items are re-pointed to that delivery, all in the same transaction.
-- When no paper remains, `build_digest` marks the delivery `failed` with that reason. A `deliver` job whose delivery is already `failed` ends without sending.
+- When no paper remains, `build_digest` marks the delivery `failed` with that reason, and the `deliver` job for that delivery ends without sending.
+- Retry (FR-DLV-06, FR-ADM-02): retrying a failed single-paper delivery resets it to `queued` and enqueues a new `deliver`. A failed digest is not retried, because its papers are back in the queue for the next run.
 - When a delivery reaches `sent`, its queue items are deleted in the same transaction. After a permanent failure they are released, so they stay queued for the next run. This includes a `build_digest` or `deliver` job that ends `dead` or `cancelled`: the failure hook (6.3.3) marks the delivery `failed` and releases its items.
 - The ad-hoc digest (`POST /api/v1/deliveries` with `digest: true`) creates its own delivery and passes its papers as `paper_ids[]` in the `build_digest` payload, outside the queue.
 - A paper whose EPUB alone exceeds `ARX_DELIVERY_MAX_BYTES` cannot be split. It is left out, removed from the queue, and named in the digest's message body and in the delivery's `last_error`, so it doesn't fail every later run (FR-DLV-03).
@@ -984,7 +985,7 @@ Conventions:
 | Paper | Full metadata, abstract, summary, similar papers, conversions, delivery history, notes | Convert, download, send, tag, note |
 | Library | Filterable list (status, tag, collection), search box with keyword/semantic toggle | Bulk status change, add to collection, send as digest, queue for digest |
 | Search | Keyword search of all of arXiv (FR-DSC-08); cards like Today with a *sent* / *library* / *stored* badge | Import, Send to Kindle, Queue for digest, next page |
-| Deliveries | History with status and errors; the digest queue with the next scheduled run | Retry, remove from queue |
+| Deliveries | History with status and errors; the digest queue with the next scheduled run | Retry (single-paper deliveries only), remove from queue |
 | Settings | Subscriptions, interests (with live preview of matching recent papers), schedules, Kindle profiles, delivery, LLM budget | — |
 | Jobs | Queue state, failures with stack-trace excerpt | Retry, cancel |
 

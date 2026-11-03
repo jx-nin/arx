@@ -44,6 +44,7 @@ class PandocEpubBuilder:
                     "--to=epub3",
                     "--toc",
                     "--toc-depth=2",
+                    "--mathml",
                     "--epub-title-page=false",
                     f"--css={css}",
                     f"--metadata=title={paper.title}",

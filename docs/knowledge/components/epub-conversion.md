@@ -16,4 +16,4 @@ generated: { by: "agent:claude-opus-5-5", at: 2026-10-31T00:00:00Z }
 * `adapters/conversion/kindle.css`: stylesheet for the [default Kindle profile](/decisions/kindle-profile.md), relative sizes only; tuned on the device.
 * Shortcut: pandoc still embeds absolute paths from `img src` and fetches remote URLs over the network, until sanitising (step 2) and [ADR-009](/decisions/adr-009-converter-isolation.md) isolation land.
 * Known limit: pandoc reads `--metadata` values as YAML scalars, so a title or author of `True` becomes `true` in the package metadata.
-* pandoc runs as a local subprocess until the converter interface (spec Q-8) is decided.
+* pandoc runs as a local subprocess until the worker calls the converter over its internal HTTP API (spec Q-8, [ADR-009](/decisions/adr-009-converter-isolation.md)) in M1.

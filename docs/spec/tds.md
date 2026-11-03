@@ -20,7 +20,7 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.10 | 2026-11-03 | Answered Q-3: MathML renders on the Paperwhite 11 Signature, so ADR-006 (maths as PNG) is rejected; FR-CNV-02, 5.2, 5.5, 6.1, 6.5.1 steps 4 and 9, 6.5.4, 13, 14 (M1), R-2: maths as MathML via pandoc `--mathml`, no MathJax/resvg. Answered Q-7: tailnet-only access without login until M3, which adds owner login FR-ADM-05 (3.10, 7.2 T1, 14). Appendix A: FR-CNV-02, FR-ADM-05 |
+| 0.10 | 2026-11-03 | Answered Q-3: MathML renders on the Paperwhite 11 Signature, so ADR-006 (maths as PNG) is rejected; FR-CNV-02, 5.2, 5.5, 6.1, 6.5.1 steps 4 and 9, 6.5.4, 13, 14 (M1), R-2: maths as MathML via pandoc `--mathml`, no MathJax/resvg. Answered Q-7: tailnet-only access without login until M3, which adds owner login FR-ADM-05 (3.10, 7.2 T1, 14). Answered Q-8: the converter is a long-running service with an internal HTTP API that the worker calls, the same in Compose and k3s (5.2, 6.1, 6.5.4, 11.1, 11.2, ADR-009). Appendix A: FR-CNV-02, FR-ADM-05 |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -344,6 +344,7 @@ Rationale is recorded in ADR-001. Module boundaries are enforced in code (import
      PostgreSQL       arXiv APIs       LLM (LiteLLM)      pandoc /        SMTP relay
      + pgvector                                          k2pdfopt /
                                                          epubcheck
+                                                         (converter, HTTP)
 ```
 
 Layering rules:
@@ -462,7 +463,7 @@ arx/
 │   └── evals/                  # LLM and ranking evaluation datasets
 ├── docker/
 │   ├── Dockerfile.app          # api + worker image
-│   └── Dockerfile.converter    # pandoc, epubcheck, k2pdfopt
+│   └── Dockerfile.converter    # pandoc, epubcheck, k2pdfopt behind an internal HTTP API (6.5.4)
 ├── deploy/
 │   ├── compose/                # docker-compose.yml, .env.example
 │   ├── helm/arx/               # Helm chart
@@ -858,7 +859,7 @@ Concatenate cleaned HTML of N papers (each as a top-level part with its own titl
 
 ### 6.5.4 Isolation
 
-Conversion tools (pandoc, k2pdfopt, epubcheck) run in a dedicated **converter** container/image invoked by the worker over a narrow interface (subprocess in the same pod in phase 2; or a sidecar exposing a local HTTP endpoint — see Q-8). The converter has no database credentials and no outbound network access except via the worker. Each invocation has CPU time, memory (`ulimit`/cgroup) and wall-clock limits.
+Conversion tools (pandoc, k2pdfopt, epubcheck) run in a dedicated, long-running **converter** container (own image) that serves a narrow internal HTTP API; the worker is its only client (Q-8). A request carries everything one conversion step needs (the prepared HTML with its images, or the PDF, plus the profile parameters); the response carries the output file or the tool's diagnostics, so no volume is shared. The worker does all fetching (steps 1 and 5), so the converter has no database credentials and no outbound network access. The same image and API run in both phases: in Compose a `converter` service on an internal network shared only with the worker, with no published port (11.1); in k3s its own Deployment behind a ClusterIP Service (11.2), because NetworkPolicies apply per Pod and the worker needs egress. Each request has CPU time, memory (`ulimit`/cgroup) and wall-clock limits. Until the worker exists, M0 runs pandoc as a local subprocess of the CLI.
 
 ## 6.6 Integrations
 
@@ -1181,7 +1182,7 @@ Deployment to the homelab uses either (a) a self-hosted runner on the M710q runn
 
 ## 11.1 Phase 1 — Docker Compose (Milestones M0–M3)
 
-Services: `postgres` (pgvector image), `migrate` (one-shot Alembic), `api`, `worker`, `converter`, `mailpit` (staging only). Managed through Dockhand; health monitored by Uptime Kuma via `/readyz`. The web UI is bound to the host's Tailscale interface (or published through `tailscale serve` with HTTPS) and not to `0.0.0.0`.
+Services: `postgres` (pgvector image), `migrate` (one-shot Alembic), `api`, `worker`, `converter` (on an internal network with the worker only, no published port; 6.5.4), `mailpit` (staging only). Managed through Dockhand; health monitored by Uptime Kuma via `/readyz`. The web UI is bound to the host's Tailscale interface (or published through `tailscale serve` with HTTPS) and not to `0.0.0.0`.
 
 ## 11.2 Phase 2 — Kubernetes (k3s) with GitOps (Milestone M4+)
 
@@ -1191,9 +1192,9 @@ Services: `postgres` (pgvector image), `migrate` (one-shot Alembic), `api`, `wor
 | Packaging | Helm chart `deploy/helm/arx` with values per environment (`staging`, `prod` namespaces) |
 | GitOps | Argo CD watching the `deploy/` path (or a separate GitOps repo); automated sync for staging, manual for prod |
 | Database | PostgreSQL as StatefulSet with local-path PV (or CloudNativePG operator if resources allow) |
-| Workloads | `api` Deployment; `worker` Deployment (replicas: 1, `strategy: Recreate`); converter as sidecar container in worker Pod with separate security context |
+| Workloads | `api` Deployment; `worker` Deployment (replicas: 1, `strategy: Recreate`); `converter` Deployment (replicas: 1) with a ClusterIP Service, called only by the worker (6.5.4) |
 | Jobs | Backups as Kubernetes CronJob calling `arx backup` |
-| Policies | Kyverno (signed images, non-root, limits); NetworkPolicies: default deny, explicit egress for worker (arXiv, LLM, SMTP, object storage), converter: no egress |
+| Policies | Kyverno (signed images, non-root, limits); NetworkPolicies: default deny, explicit egress for worker (arXiv, LLM, SMTP, object storage), converter: ingress from the worker only, no egress |
 | Secrets | Sealed Secrets |
 | Observability | kube-prometheus-stack (trimmed) or Prometheus + Grafana Helm charts with reduced retention |
 
@@ -1265,7 +1266,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | ADR-006 | Render maths to PNG (via MathJax→SVG→PNG) rather than MathML/SVG in EPUB | Rejected (Q-3) | Device test on the Paperwhite 11 Signature (firmware 5.19.2): an EPUB built with pandoc `--mathml` renders maths acceptably. Maths stays MathML (FR-CNV-02, 6.5.1 step 4); the converter image needs no MathJax or resvg. |
 | ADR-007 | HTMX + server-rendered templates instead of SPA | Accepted | Minimal JS, single deployable, phone-friendly. |
 | ADR-008 | GitOps pull-based deployment (Argo CD) for phase 2 | Accepted | No inbound access to homelab from CI; Git as source of truth; drift detection. |
-| ADR-009 | Converter tools isolated in separate container without network | Accepted | Main attack surface (parsing untrusted documents) is sandboxed. |
+| ADR-009 | Converter tools isolated in separate container without network | Accepted | Main attack surface (parsing untrusted documents) is sandboxed. The worker calls the long-running converter over an internal HTTP API, the same in Compose and k3s (Q-8, 6.5.4). |
 | ADR-010 | Python 3.14 as implementation language | Accepted | Workload is I/O- and rate-limit-bound; ecosystem for ML/LLM; aligns with owner's career goals. 3.14 is the newest version all planned dependencies ship wheels for. A future performance-critical component MAY be written in Go behind an interface. |
 
 Full ADRs are maintained as OKF `Decision` concepts in `docs/knowledge/decisions/` (one file per ADR, e.g. `adr-001-modular-monolith.md`). This table is the summary; the concept file is authoritative when they differ.
@@ -1317,7 +1318,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
 | Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 | Open |
 | Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Tailnet-only, no login, for M1's minimal UI; owner login (FR-ADM-05) arrives in M3 with the full UI (7.2 T1, 14) |
-| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Open |
+| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Long-running HTTP sidecar: the converter serves a narrow internal HTTP API to the worker, the same in Compose and k3s (6.5.4, 11.1, 11.2) |
 | Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 | Open |
 | Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 | Open |
 | Q-11 | Database driver: spec says asyncpg; the repository already depends on psycopg 3, which also works async with SQLAlchemy and sync for Alembic/CLI. Pick one. | M0 | psycopg 3 (5.5) |

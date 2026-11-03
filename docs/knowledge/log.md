@@ -2,7 +2,7 @@
 
 ## 2026-11-03
 
-* Spec moves to v0.10. Answered Q-3: [ADR-006](/decisions/adr-006-math-png.md) rejected, maths as MathML via pandoc `--mathml`; updated [EPUB conversion](/components/epub-conversion.md) and [ADR-009](/decisions/adr-009-converter-isolation.md). Answered Q-7 in the [specification](/specs/tds.md): tailnet-only until owner login in M3.
+* Spec moves to v0.10. Answered Q-3: [ADR-006](/decisions/adr-006-math-png.md) rejected, maths as MathML via pandoc `--mathml`; updated [EPUB conversion](/components/epub-conversion.md) and [ADR-009](/decisions/adr-009-converter-isolation.md). Answered Q-7 in the [specification](/specs/tds.md): tailnet-only until owner login in M3. Answered Q-8: updated [ADR-009](/decisions/adr-009-converter-isolation.md), the converter serves an internal HTTP API.
 * Spec moves to v0.9. Added [arXiv client and send by ID or URL](/components/arxiv-client.md): reference parser, arXiv API and HTML client, `KindleService`, `arx kindle` CLI command. Updated [Kindle delivery](/components/kindle-delivery.md) with `check_recipient`.
 
 ## 2026-10-31

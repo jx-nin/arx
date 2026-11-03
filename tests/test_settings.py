@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from arx.settings import Settings
+from arx.settings import DatabaseSettings, Settings
 
 REQUIRED = {
     "ARX_SMTP_USERNAME": "arx.sender@gmail.com",
@@ -104,3 +104,42 @@ def test_arxiv_interval_cannot_be_negative(env: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ValidationError, match="arxiv_min_interval_s"):
         load()
+
+
+def test_database_settings_need_no_delivery_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for name in REQUIRED:
+        monkeypatch.delenv(name, raising=False)
+
+    settings = DatabaseSettings(_env_file=None)  # type: ignore[call-arg]
+
+    assert settings.database_url_file == Path("/run/secrets/database_url")
+
+
+def test_database_url_file_is_read_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ARX_DATABASE_URL_FILE", "/tmp/db_url")
+
+    settings = DatabaseSettings(_env_file=None)  # type: ignore[call-arg]
+
+    assert settings.database_url_file == Path("/tmp/db_url")
+
+
+def test_both_settings_share_one_env_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for name in REQUIRED:
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "".join(f"{name}={value}\n" for name, value in REQUIRED.items())
+        + "ARX_DATABASE_URL_FILE=/tmp/db_url\n"
+    )
+
+    settings = Settings(_env_file=env_file)  # type: ignore[call-arg]
+    database = DatabaseSettings(_env_file=env_file)  # type: ignore[call-arg]
+
+    assert settings.delivery_from == "arx.sender@gmail.com"
+    assert database.database_url_file == Path("/tmp/db_url")

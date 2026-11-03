@@ -12,6 +12,8 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 KINDLE_DOMAIN = "@kindle.com"
+# Both settings classes read one .env, so each ignores the other's variables.
+ENV = SettingsConfigDict(env_prefix="ARX_", env_file=".env", extra="ignore")
 
 
 class Settings(BaseSettings):
@@ -30,7 +32,7 @@ class Settings(BaseSettings):
         Arx and the sender address as contact.
     """
 
-    model_config = SettingsConfigDict(env_prefix="ARX_", env_file=".env")
+    model_config = ENV
 
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
@@ -61,3 +63,18 @@ class Settings(BaseSettings):
         if foreign:
             raise ValueError(f"not {KINDLE_DOMAIN} addresses: {', '.join(foreign)}")
         return frozenset(recipients)
+
+
+class DatabaseSettings(BaseSettings):
+    """Database configuration; each field reads the variable ``ARX_<FIELD>``.
+
+    Kept apart from :class:`Settings` so that commands without a database need
+    no database settings, and migrations need no delivery settings.
+
+    :param database_url_file: File holding the PostgreSQL URL
+        (``postgresql://user:password@host/db``), which includes the password.
+    """
+
+    model_config = ENV
+
+    database_url_file: Path = Path("/run/secrets/database_url")

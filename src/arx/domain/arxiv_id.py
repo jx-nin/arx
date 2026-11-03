@@ -7,8 +7,9 @@ from dataclasses import dataclass
 ID_PATTERN = r"[0-9]{4}\.[0-9]{4,5}|[a-z-]+(?:\.[A-Z]{2})?/[0-9]{7}"
 VERSIONED_ID = re.compile(rf"(?P<arxiv_id>{ID_PATTERN})v(?P<version>[1-9][0-9]*)")
 REFERENCE = re.compile(
-    r"(?:(?i:arxiv:)|(?i:(?:https?://)?(?:www\.)?arxiv\.org/(?:abs|pdf|html)/))?"
-    rf"(?P<arxiv_id>{ID_PATTERN})(?:v(?P<version>[1-9][0-9]*))?(?:\.pdf|/)?"
+    r"(?:(?i:arxiv:)"
+    r"|(?i:(?:https?://)?(?:www\.|export\.)?arxiv\.org/(?:abs|pdf|html)/))?"
+    rf"(?P<arxiv_id>{ID_PATTERN})(?:v(?P<version>[1-9][0-9]*))?(?:\.pdf|/)?(?:[?#].*)?"
 )
 
 
@@ -28,8 +29,8 @@ def parse_reference(text: str) -> PaperRef:
     """Read an arXiv ID or an abstract, PDF or HTML URL.
 
     :param text: ID such as ``2401.01234v2`` or ``arXiv:2401.01234``, or a URL
-        such as ``https://arxiv.org/abs/2401.01234``; surrounding whitespace is
-        ignored.
+        such as ``https://arxiv.org/abs/2401.01234``; surrounding whitespace and
+        a URL's query or fragment are ignored.
     :returns: The paper and version the text names.
     :raises ValueError: If the text names no arXiv paper.
     """

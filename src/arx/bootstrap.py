@@ -45,8 +45,11 @@ def build_arxiv_client(settings: Settings) -> ArxivClient:
     user_agent = settings.arxiv_user_agent or (
         f"arx/{version('arx')} (mailto:{settings.delivery_from})"
     )
+    # shortcut: never closed, fine for one CLI run; close it when the worker owns it.
     http = httpx.Client(
-        headers={"User-Agent": user_agent}, timeout=ARXIV_TIMEOUT_SECONDS
+        headers={"User-Agent": user_agent},
+        timeout=ARXIV_TIMEOUT_SECONDS,
+        follow_redirects=True,
     )
     return ArxivClient(http, settings.arxiv_min_interval_s)
 

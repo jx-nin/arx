@@ -114,6 +114,31 @@ def test_paper_reports_an_api_error_entry() -> None:
 
 
 @pytest.mark.req("FR-ING-04")
+def test_paper_reports_a_response_that_is_not_xml() -> None:
+    page = httpx.Response(200, text="<html>down for maintenance")
+    client, _ = make_client(responses={"/api/query": page})
+
+    with pytest.raises(ValueError, match="malformed"):
+        client.paper("2401.01234", None)
+
+
+@pytest.mark.req("FR-ING-04")
+def test_paper_treats_an_error_id_that_embeds_an_arxiv_id_as_an_error() -> None:
+    error_id = "https://arxiv.org/api/errors#incorrect_id_format_for_2401.01234v1x"
+    atom = (
+        (FIXTURES / "api_error.xml")
+        .read_text()
+        .replace(
+            "https://arxiv.org/api/errors#incorrect_id_format_for_2401.1", error_id
+        )
+    )
+    client, _ = make_client(responses={"/api/query": httpx.Response(200, text=atom)})
+
+    with pytest.raises(ValueError, match="arXiv API error"):
+        client.paper("2401.01234", None)
+
+
+@pytest.mark.req("FR-ING-04")
 def test_html_downloads_the_rendition_of_that_version() -> None:
     page = httpx.Response(200, text="<html>paper</html>")
     client, requests = make_client(responses={"/html/2401.01234v1": page})

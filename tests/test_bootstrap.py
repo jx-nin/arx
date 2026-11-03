@@ -78,6 +78,10 @@ def arxiv_requests(monkeypatch: pytest.MonkeyPatch) -> list[httpx.Request]:
 
     def respond(request: httpx.Request) -> httpx.Response:
         requests.append(request)
+        if request.url.path == "/html/2401.01234v2":
+            return httpx.Response(301, headers={"Location": "/html/2401.01234v2/"})
+        if request.url.path == "/html/2401.01234v2/":
+            return httpx.Response(200, text="<html>paper</html>")
         return httpx.Response(404)
 
     real_client = httpx.Client
@@ -109,3 +113,12 @@ def test_arxiv_user_agent_can_be_configured(
     build_arxiv_client(settings).html(PAPER)
 
     assert arxiv_requests[0].headers["User-Agent"] == "arx-test (me@example.com)"
+
+
+@pytest.mark.req("FR-ING-04")
+def test_arxiv_client_follows_redirects(
+    arxiv_requests: list[httpx.Request], tmp_path: Path
+) -> None:
+    html = build_arxiv_client(make_settings(tmp_path)).html(PAPER)
+
+    assert html == "<html>paper</html>"

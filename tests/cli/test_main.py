@@ -8,6 +8,7 @@ import pytest
 
 from arx.cli.main import main
 
+FIXTURES = Path(__file__).parents[1] / "fixtures"
 RECIPIENT = "reader@kindle.com"
 
 
@@ -177,9 +178,6 @@ def test_send_rejects_a_malformed_date(
         main(args)
 
     assert "YYYY-MM-DD" in capsys.readouterr().err
-
-
-FIXTURES = Path(__file__).parents[1] / "fixtures"
 
 
 @pytest.fixture

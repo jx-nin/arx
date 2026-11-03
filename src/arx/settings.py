@@ -8,7 +8,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 KINDLE_DOMAIN = "@kindle.com"
@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     delivery_from: str
     delivery_allowed_recipients: Annotated[frozenset[str], NoDecode]
     delivery_max_bytes: int = 20 * 1024 * 1024
-    arxiv_min_interval_s: float = 3.0
+    arxiv_min_interval_s: float = Field(default=3.0, ge=0)
     arxiv_user_agent: str | None = None
 
     @field_validator("delivery_allowed_recipients", mode="before")

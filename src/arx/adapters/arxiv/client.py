@@ -1,6 +1,7 @@
 """arXiv client: paper metadata from the API and HTML renditions (spec 6.6.1)."""
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from datetime import datetime
@@ -8,16 +9,19 @@ from datetime import datetime
 import httpx
 from lxml import etree
 
-from arx.domain.arxiv_id import VERSIONED_ID
+from arx.domain.arxiv_id import ID_PATTERN
 from arx.domain.paper import Paper
 
 logger = logging.getLogger(__name__)
 
+# shortcut: fixed endpoints, move to ARX_ARXIV_*_BASE settings (spec 12) in M1.
 API_URL = "https://export.arxiv.org/api/query"
 HTML_URL = "https://arxiv.org/html/{versioned_id}"
 ATOM = {"atom": "http://www.w3.org/2005/Atom"}
-# API responses are untrusted input: no entity expansion, no network access.
-ATOM_PARSER = etree.XMLParser(resolve_entities=False, no_network=True)
+# Error reports come as entries whose ID is not a paper URL.
+ENTRY_ID = re.compile(
+    rf"https?://arxiv\.org/abs/(?P<arxiv_id>{ID_PATTERN})v(?P<version>[1-9][0-9]*)"
+)
 
 
 class ArxivClient:
@@ -102,13 +106,18 @@ def _parse_entry(atom: bytes) -> Paper | None:
 
     :param atom: The response body.
     :returns: The paper, or ``None`` if the feed has no entry.
-    :raises ValueError: If the entry is an API error report.
+    :raises ValueError: If the body is not XML or the entry is an API error
+        report.
     """
-    entry = etree.fromstring(atom, ATOM_PARSER).find("atom:entry", ATOM)
+    # Untrusted input: no entity expansion, no network access.
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    try:
+        entry = etree.fromstring(atom, parser).find("atom:entry", ATOM)
+    except etree.XMLSyntaxError as error:
+        raise ValueError(f"arXiv API returned malformed XML: {error}") from error
     if entry is None:
         return None
-    # Error reports come as entries whose ID is not a paper URL.
-    match = VERSIONED_ID.search(_text(entry, "id"))
+    match = ENTRY_ID.fullmatch(_text(entry, "id"))
     if match is None:
         raise ValueError(f"arXiv API error: {_text(entry, 'summary')}")
     return Paper(

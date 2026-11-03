@@ -22,7 +22,7 @@ okf_version: "0.2"
 * [ADR-003 pgvector](/decisions/adr-003-pgvector.md) - vector search inside PostgreSQL
 * [ADR-004 fastembed](/decisions/adr-004-fastembed.md) - CPU embeddings with bge-small-en-v1.5
 * [ADR-005 LiteLLM](/decisions/adr-005-litellm.md) - provider-agnostic LLM gateway
-* [ADR-006 Maths to PNG](/decisions/adr-006-math-png.md) - proposed, pending device test
+* [ADR-006 Maths to PNG](/decisions/adr-006-math-png.md) - rejected after the device test; maths as MathML via pandoc
 * [ADR-007 HTMX UI](/decisions/adr-007-htmx.md) - server-rendered templates, no SPA
 * [ADR-008 GitOps](/decisions/adr-008-gitops.md) - Argo CD pull deployment in phase 2
 * [ADR-009 Isolated converter](/decisions/adr-009-converter-isolation.md) - sandboxed document tooling

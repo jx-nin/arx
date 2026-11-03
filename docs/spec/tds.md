@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "3 November 2026"
-version: "0.9 (Draft)"
+version: "0.10 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.9 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.9 — Draft |
+| Version | 0.10 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 3 November 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.9 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.10 | 2026-11-03 | Answered Q-3: MathML renders on the Paperwhite 11 Signature, so ADR-006 (maths as PNG) is rejected; FR-CNV-02, 5.2, 5.5, 6.1, 6.5.1 steps 4 and 9, 6.5.4, 13, 14 (M1), R-2: maths as MathML via pandoc `--mathml`, no MathJax/resvg. Appendix A: FR-CNV-02 |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -226,7 +227,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-CNV-01 | When an HTML rendition is available, the system MUST convert it to a valid EPUB 3 file containing: title page (title, authors, arXiv ID, date, licence, link), navigable table of contents, body text, figures, tables, references. | P0 |
-| FR-CNV-02 | Mathematics MUST be legible on the target device. Display and inline maths SHOULD be rendered to raster images at device-appropriate resolution with the TeX source preserved as alt text (see ADR-006). | P0 |
+| FR-CNV-02 | Mathematics MUST be legible on the target device. Display and inline maths SHOULD be embedded as MathML with the TeX source preserved as annotation and `alttext` (Q-3; ADR-006 rejected). | P0 |
 | FR-CNV-03 | Figures MUST be fetched, converted to greyscale, resized to the target profile width and embedded. | P0 |
 | FR-CNV-04 | Tables wider than the target width SHOULD be rendered as images; narrow tables SHOULD remain as HTML tables. | P1 |
 | FR-CNV-05 | When no HTML rendition is available, the system MUST fall back to reflowing the PDF for the target screen (k2pdfopt) and produce a PDF optimised for the device. | P1 |
@@ -341,7 +342,7 @@ Rationale is recorded in ADR-001. Module boundaries are enforced in code (import
          |                |                 |                |               |
      PostgreSQL       arXiv APIs       LLM (LiteLLM)      pandoc /        SMTP relay
      + pgvector                                          k2pdfopt /
-                                                         MathJax (node)
+                                                         epubcheck
 ```
 
 Layering rules:
@@ -398,7 +399,7 @@ Layering rules:
 | HTML processing | lxml / selectolax; nh3 for sanitisation | Fast, safe |
 | Embeddings | fastembed (ONNX Runtime, CPU) with `BAAI/bge-small-en-v1.5` (384-d) | Small footprint, good quality, no PyTorch dependency (ADR-004) |
 | LLM access | LiteLLM (library mode) | Provider-agnostic; supports hosted APIs and local Ollama; cost tracking (ADR-005) |
-| Maths rendering | MathJax 3 (Node.js sidecar CLI) → SVG → PNG via resvg/cairosvg | Faithful TeX rendering; PNG is reliably supported on Kindle (ADR-006) |
+| Maths rendering | MathML written by pandoc `--mathml` from the LaTeXML MathML, TeX kept as annotation | The target Kindle renders MathML from personal documents acceptably (Q-3 device test); no extra tooling (ADR-006 rejected) |
 | EPUB build | pandoc 3.x | Battle-tested HTML→EPUB3 conversion with TOC generation |
 | EPUB validation | epubcheck (Java, in conversion image) | Industry-standard validator |
 | PDF fallback | k2pdfopt | Purpose-built PDF reflow for e-readers |
@@ -442,7 +443,7 @@ arx/
 │   │   ├── arxiv/              # client, parsers, rate limiter
 │   │   ├── embeddings/
 │   │   ├── llm/
-│   │   ├── conversion/         # html_cleaner, math_renderer, epub_builder, pdf_reflow
+│   │   ├── conversion/         # html_cleaner, epub_builder, pdf_reflow
 │   │   ├── mail/
 │   │   ├── storage/            # file cache (local FS / object storage)
 │   │   └── db/                 # SQLAlchemy models, repositories
@@ -460,7 +461,7 @@ arx/
 │   └── evals/                  # LLM and ranking evaluation datasets
 ├── docker/
 │   ├── Dockerfile.app          # api + worker image
-│   └── Dockerfile.converter    # pandoc, epubcheck, k2pdfopt, node+mathjax
+│   └── Dockerfile.converter    # pandoc, epubcheck, k2pdfopt
 ├── deploy/
 │   ├── compose/                # docker-compose.yml, .env.example
 │   ├── helm/arx/               # Helm chart
@@ -825,7 +826,7 @@ decay(age) = 0.5 ^ (age_days / 60)    # half-life 60 days
 
 ## 6.5 Conversion Pipeline
 
-The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite Signature Edition (11th generation), 1236 × 1648 px, `image_dpi` 300, greyscale. The migration that creates `kindle_profile` seeds it with `is_default = TRUE`. Margins subtracted from the figure width (6.5.1 step 5) are tuned during the device test (Q-3).
+The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite Signature Edition (11th generation), 1236 × 1648 px, `image_dpi` 300, greyscale. The migration that creates `kindle_profile` seeds it with `is_default = TRUE`. Margins subtracted from the figure width (6.5.1 step 5) are tuned on the device.
 
 ### 6.5.1 HTML → EPUB (primary path)
 
@@ -834,12 +835,12 @@ The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite
 | 1 | Fetch | GET HTML rendition and its assets (images, CSS ignored). URL allowlist: arXiv HTML host only. Rate-limited through the arXiv limiter. Max response size 25 MB; timeout 60 s. |
 | 2 | Sanitise | Parse with lxml; remove scripts, iframes, forms, event handlers, external links in `src`; normalise with nh3 allowlist. |
 | 3 | Clean structure | Remove arXiv page chrome (header, footer, navigation, "report issue" widgets, theme toggles). Keep `<article>` content without the LaTeXML front matter the title page repeats (title, authors, abstract). Normalise heading levels (h1 = title, h2 = sections; deferred from M0 to M1). |
-| 4 | Mathematics | Extract TeX from MathML `alttext`/annotation. Render via MathJax sidecar to SVG, rasterise to PNG at profile DPI; inline maths scaled to x-height, display maths centred. Cache by `sha256(tex + profile)`. Fallback when rendering fails: keep TeX source in monospace. |
+| 4 | Mathematics | Keep LaTeXML's MathML with its `alttext` and `application/x-tex` annotation; step 9 writes it into the EPUB as MathML (Q-3). Where pandoc cannot convert an expression it keeps the TeX source as text and warns; the warning is logged. |
 | 5 | Figures | Download, convert to 8-bit greyscale, resize to profile width minus margins, optionally apply Floyd–Steinberg dithering for line art. Keep captions. |
 | 6 | Tables | Measure column count/estimated width; tables exceeding the threshold are rendered to PNG (headless rendering in converter image); others kept as HTML with compact CSS. |
 | 7 | References & links | Convert in-document citations to internal EPUB links; strip external hyperlinks except DOI/arXiv links in references. |
 | 8 | Front matter | Generate title page: title, authors, arXiv ID + version, dates, licence, abstract, LLM summary (if any, clearly labelled). |
-| 9 | Build | `pandoc --from html --to epub3 --toc --toc-depth=2 --epub-title-page=false --css kindle.css --metadata lang=en --metadata …` (step 8 supplies the title page) |
+| 9 | Build | `pandoc --from html --to epub3 --toc --toc-depth=2 --mathml --epub-title-page=false --css kindle.css --metadata lang=en --metadata …` (step 8 supplies the title page) |
 | 10 | Validate | Run `epubcheck`; errors → `conversion.status = failed` with diagnostics; warnings stored. |
 | 11 | Store | Write to storage under `conversions/<arxiv_id>/v<ver>/<profile>/<converter_version>.epub`; record SHA-256 and size. |
 
@@ -856,7 +857,7 @@ Concatenate cleaned HTML of N papers (each as a top-level part with its own titl
 
 ### 6.5.4 Isolation
 
-Conversion tools (pandoc, Node/MathJax, k2pdfopt, epubcheck) run in a dedicated **converter** container/image invoked by the worker over a narrow interface (subprocess in the same pod in phase 2; or a sidecar exposing a local HTTP endpoint — see Q-8). The converter has no database credentials and no outbound network access except via the worker. Each invocation has CPU time, memory (`ulimit`/cgroup) and wall-clock limits.
+Conversion tools (pandoc, k2pdfopt, epubcheck) run in a dedicated **converter** container/image invoked by the worker over a narrow interface (subprocess in the same pod in phase 2; or a sidecar exposing a local HTTP endpoint — see Q-8). The converter has no database credentials and no outbound network access except via the worker. Each invocation has CPU time, memory (`ulimit`/cgroup) and wall-clock limits.
 
 ## 6.6 Integrations
 
@@ -1260,7 +1261,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 | ADR-003 | pgvector for vector search | Accepted | Corpus ≤ 10<sup>5</sup> vectors; HNSW in Postgres is sufficient; avoids a separate vector DB. |
 | ADR-004 | fastembed + `bge-small-en-v1.5` on CPU | Accepted | ~130 MB model, no PyTorch, adequate quality for abstracts; model name stored per embedding to allow re-indexing. |
 | ADR-005 | LiteLLM as LLM abstraction; hosted API by default, Ollama optional | Accepted | Provider independence, cost tracking; only public data leaves the host. |
-| ADR-006 | Render maths to PNG (via MathJax→SVG→PNG) rather than MathML/SVG in EPUB | Proposed — validate on device | Kindle support for MathML and SVG in personal documents is inconsistent *(verify on target device)*; PNG is universally displayed. Trade-off: larger files, non-scalable maths; mitigated by profile DPI. |
+| ADR-006 | Render maths to PNG (via MathJax→SVG→PNG) rather than MathML/SVG in EPUB | Rejected (Q-3) | Device test on the Paperwhite 11 Signature (firmware 5.19.2): an EPUB built with pandoc `--mathml` renders maths acceptably. Maths stays MathML (FR-CNV-02, 6.5.1 step 4); the converter image needs no MathJax or resvg. |
 | ADR-007 | HTMX + server-rendered templates instead of SPA | Accepted | Minimal JS, single deployable, phone-friendly. |
 | ADR-008 | GitOps pull-based deployment (Argo CD) for phase 2 | Accepted | No inbound access to homelab from CI; Git as source of truth; drift detection. |
 | ADR-009 | Converter tools isolated in separate container without network | Accepted | Main attack surface (parsing untrusted documents) is sandboxed. |
@@ -1276,7 +1277,7 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 | Milestone | Scope | Exit criteria (Definition of Done) | Est. |
 |---|---|---|---|
 | **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then fetch yesterday's papers for one category; convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
-| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with maths/figures), deliver; epubcheck; delivery history; minimal UI (feed list, send button) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
+| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with figures and tables; MathML maths since M0), deliver; epubcheck; delivery history; minimal UI (feed list, send button) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics | 2–3 weeks |
 | **M2 — Secure CI/CD** | Full PR pipeline (SAST, SCA, secrets, coverage gate), image build/scan/SBOM/sign, GHCR, automated deploy to homelab staging (Compose) | A PR with a planted secret or critical CVE is blocked; signed images deployed automatically | 1 week |
 | **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
 | **M4 — Kubernetes & GitOps** | k3s via Ansible; Helm chart; Argo CD; Sealed Secrets; NetworkPolicies; Kyverno policies | Push to `main` → staging updated by Argo CD without manual steps; unsigned image rejected | 2 weeks |
@@ -1295,7 +1296,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | R-1 | arXiv HTML rendition missing or broken for a share of papers | Medium | Medium | PDF reflow fallback; quality flag in UI; golden tests on diverse papers |
-| R-2 | Kindle rendering of maths/tables poorer than expected | Medium | High | Early device validation in M0/M1 (ADR-006); profile tuning |
+| R-2 | Kindle rendering of maths/tables poorer than expected | Medium | High | Maths: MathML confirmed on the target device (Q-3); wide tables as images (FR-CNV-04); golden tests with heavy maths; profile tuning |
 | R-3 | Changes to Send to Kindle (formats, limits, e-mail channel) | Low–Medium | High | Delivery adapter interface; alternative: download via UI / USB |
 | R-4 | arXiv endpoint or policy changes | Low | Medium | Configurable endpoints; contract tests refreshed monthly |
 | R-5 | Memory exhaustion on 8 GB host after adding k3s and monitoring | Medium | Medium | Resource budget (8.6); trimmed monitoring; phase 2 only after phase 1 measured |
@@ -1310,7 +1311,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 |---|---|---|---|
 | Q-1 | Which Kindle model/resolution is the default profile? | M0 | Paperwhite Signature Edition (11th gen), 1236 × 1648 px, 300 dpi, greyscale (6.5) |
 | Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) | Open |
-| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Open; device: Paperwhite 11 Signature, firmware 5.19.2 |
+| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Yes: an EPUB built with pandoc `--mathml` renders maths acceptably on the Paperwhite 11 Signature, firmware 5.19.2; ADR-006 rejected (FR-CNV-02, 6.5.1) |
 | Q-4 | Which SMTP provider will be used as the approved sender? | M0 | Dedicated Gmail account, app password, STARTTLS 587 (6.6.3) |
 | Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
 | Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 | Open |
@@ -1332,6 +1333,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
 | FR-ING-04 | 6.6.1 | `tests/domain/test_arxiv_id.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (ID and URL, HTML path), M1 (stored in the library) |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
+| FR-CNV-02 | 6.5.1 steps 4 and 9 | `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set with heavy maths (`golden`) in M1 | M0 (MathML) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
 | FR-DLV-01 | 6.6.1 | `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (CLI), M1 (UI) |
 | FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py`, `tests/test_bootstrap.py`, `tests/cli/test_main.py` | M0 |
@@ -1366,4 +1368,4 @@ Category list SHOULD be loaded from arXiv's taxonomy at setup rather than hard-c
 - RFC 2119 (requirement levels), RFC 9457 (Problem Details for HTTP APIs)
 - OWASP ASVS 4.x; OWASP Top 10; SLSA framework; CycloneDX specification
 - PostgreSQL documentation: `SELECT … FOR UPDATE SKIP LOCKED`, `LISTEN/NOTIFY`, advisory locks
-- pgvector, fastembed, LiteLLM, pandoc, epubcheck, k2pdfopt, MathJax project documentation
+- pgvector, fastembed, LiteLLM, pandoc, epubcheck, k2pdfopt project documentation

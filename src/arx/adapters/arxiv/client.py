@@ -1,4 +1,4 @@
-"""arXiv client: paper metadata from the API and HTML renditions (spec 6.6.1)."""
+"""arXiv client: API metadata, RSS listings and HTML renditions (spec 6.6.1)."""
 
 import logging
 import re
@@ -9,6 +9,7 @@ from datetime import datetime
 import httpx
 from lxml import etree
 
+from arx.domain.announcement import Announcement
 from arx.domain.arxiv_id import ID_PATTERN
 from arx.domain.paper import Paper
 
@@ -17,11 +18,21 @@ logger = logging.getLogger(__name__)
 # shortcut: fixed endpoints, move to ARX_ARXIV_*_BASE settings (spec 12) in M1.
 API_URL = "https://export.arxiv.org/api/query"
 HTML_URL = "https://arxiv.org/html/{versioned_id}"
+RSS_URL = "https://rss.arxiv.org/rss/{category}"
 ATOM = {"atom": "http://www.w3.org/2005/Atom"}
+RSS = {
+    "arxiv": "http://arxiv.org/schemas/atom",
+    "dc": "http://purl.org/dc/elements/1.1/",
+}
 # Error reports come as entries whose ID is not a paper URL.
 ENTRY_ID = re.compile(
     rf"https?://arxiv\.org/abs/(?P<arxiv_id>{ID_PATTERN})v(?P<version>[1-9][0-9]*)"
 )
+ITEM_GUID = re.compile(
+    rf"oai:arXiv\.org:(?P<arxiv_id>{ID_PATTERN})v(?P<version>[1-9][0-9]*)"
+)
+# Innermost parenthesised group: affiliations follow author names in the feed.
+AFFILIATION = re.compile(r"\s*\([^()]*\)")
 
 
 class ArxivClient:
@@ -63,6 +74,21 @@ class ArxivClient:
         id_list = arxiv_id if version is None else f"{arxiv_id}v{version}"
         response = self._get(API_URL, params={"id_list": id_list})
         return None if response is None else _parse_entry(response.content)
+
+    def announcements(self, category: str) -> list[Announcement]:
+        """Read the category's RSS feed of the latest daily announcement.
+
+        :param category: arXiv category such as ``cs.LG``, already checked.
+        :returns: The announced papers in feed order; empty on days without
+            announcement.
+        :raises ValueError: If arXiv has no feed for the category, the body is
+            not XML or an item carries no arXiv ID.
+        :raises OSError: If the request fails, also on an unknown category.
+        """
+        response = self._get(RSS_URL.format(category=category))
+        if response is None:
+            raise ValueError(f"arXiv has no feed for {category}")
+        return _parse_rss(response.content)
 
     def html(self, paper: Paper) -> str | None:
         """Download the HTML rendition of the paper's version.
@@ -109,12 +135,7 @@ def _parse_entry(atom: bytes) -> Paper | None:
     :raises ValueError: If the body is not XML or the entry is an API error
         report.
     """
-    # Untrusted input: no entity expansion, no network access.
-    parser = etree.XMLParser(resolve_entities=False, no_network=True)
-    try:
-        entry = etree.fromstring(atom, parser).find("atom:entry", ATOM)
-    except etree.XMLSyntaxError as error:
-        raise ValueError(f"arXiv API returned malformed XML: {error}") from error
+    entry = _xml(atom, "API").find("atom:entry", ATOM)
     if entry is None:
         return None
     match = ENTRY_ID.fullmatch(_text(entry, "id"))
@@ -134,6 +155,58 @@ def _parse_entry(atom: bytes) -> Paper | None:
         # The API does not carry the licence.
         license=None,
     )
+
+
+def _parse_rss(rss: bytes) -> list[Announcement]:
+    """Read the items of an arXiv category RSS feed.
+
+    :param rss: The response body.
+    :returns: One announcement per item, in feed order.
+    :raises ValueError: If the body is not XML or an item's ``guid`` is not an
+        ``oai:arXiv.org:<id>v<n>`` identifier.
+    """
+    announcements = []
+    for item in _xml(rss, "RSS").iterfind("channel/item"):
+        guid = item.findtext("guid", "")
+        match = ITEM_GUID.fullmatch(guid.strip())
+        if match is None:
+            raise ValueError(f"arXiv RSS item without arXiv ID: {guid!r}")
+        announcements.append(
+            Announcement(
+                arxiv_id=match["arxiv_id"],
+                version=int(match["version"]),
+                title=" ".join(item.findtext("title", "").split()),
+                authors=_authors(item.findtext("dc:creator", "", RSS)),
+                announce_type=item.findtext("arxiv:announce_type", "", RSS).strip(),
+            )
+        )
+    return announcements
+
+
+def _authors(creators: str) -> tuple[str, ...]:
+    """Split an RSS item's comma-separated authors, dropping affiliations.
+
+    :param creators: Text of ``<dc:creator>``, e.g. ``A (Univ, Dept), B``.
+    :returns: Author names in listing order.
+    """
+    while AFFILIATION.search(creators):
+        creators = AFFILIATION.sub("", creators)
+    return tuple(" ".join(n.split()) for n in creators.split(",") if n.strip())
+
+
+def _xml(body: bytes, source: str) -> etree._Element:
+    """Parse an untrusted XML response: no entity expansion, no network access.
+
+    :param body: The response body.
+    :param source: Name of the arXiv interface for the error message.
+    :returns: The root element.
+    :raises ValueError: If the body is not well-formed XML.
+    """
+    parser = etree.XMLParser(resolve_entities=False, no_network=True)
+    try:
+        return etree.fromstring(body, parser)
+    except etree.XMLSyntaxError as error:
+        raise ValueError(f"arXiv {source} returned malformed XML: {error}") from error
 
 
 def _text(entry: etree._Element, tag: str) -> str:

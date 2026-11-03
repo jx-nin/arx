@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "3 November 2026"
-version: "0.12 (Draft)"
+version: "0.13 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.12 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.12 — Draft |
+| Version | 0.13 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 3 November 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.12 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.13 | 2026-11-03 | Answered Q-3: MathML renders on the Paperwhite 11 Signature, so ADR-006 (maths as PNG) is rejected; FR-CNV-02, 5.2, 5.5, 6.1, 6.5.1 steps 2, 4 and 9, 6.5.4, 13, 14 (M0, M1), R-2: maths as MathML via pandoc `--mathml`, no MathJax/resvg. Answered Q-7: tailnet-only access without login until M3, which adds owner login FR-ADM-05 (3.10, 7.2 T1, 14). Answered Q-8: the converter is a long-running service with an internal HTTP API that the worker calls, the same in Compose and k3s (5.2, 6.1, 6.5.4, 7.2 T3, 11.1, 11.2, ADR-009). Appendix A: FR-CNV-02, FR-ADM-05 |
 | 0.12 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with at least one sendable queued paper. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`, `ARX_DIGEST_RECIPIENT`), 14 (digests move from M8 to M1), Appendix A. `build_digest` is keyed by its delivery (6.3.4); a failure hook on `dead`/`cancelled` fails the delivery and releases its items (6.3.3); `fetch_paper` can queue after import (own key `fetch_queue:<id>`); `delivery_item` cascades with its conversion, and cache eviction keeps conversion rows (6.2.3, FR-DAT-03); only single-paper deliveries are retried (6.5.3, 6.8). Owner decisions: M1 search shows only *sent* and *stored*, *library* arrives in M3 (FR-DSC-08, 6.6.1, 14, Appendix A incl. FR-ING-04 "stored" in M1); queued papers without an HTML rendition are removed at the digest run and reported (FR-DLV-08, 6.5.3), with the report shown in 6.7 and 6.8. Job retry is refused (409) for digest jobs (6.5.3, 6.7, 6.8); an evicted file is a cache miss regenerated into the same conversion row |
 | 0.11 | 2026-11-03 | Section 6.2.2: M0 migration creates only `paper`, `primary_category` nullable until the harvest, pgvector extension with the first embedding table; papers stored once per arXiv ID at the latest version, synchronous until the worker (5.5). Section 12: `ARX_DATABASE_URL_FILE` replaces `ARX_DATABASE_URL`. Appendix A: FR-ING-03 (M0 partial), FR-ING-07; section 12: unprefixed `.env` keys ignored, unknown `ARX_*` keys rejected |
 | 0.10 | 2026-11-03 | Section 6.6.1: M0 command `arx today CATEGORY` lists the latest announced new papers and cross-lists of one category from `rss.arxiv.org`, replacements left out; RSS is the M0 stopgap for Q-2, which stays open for the M1 spike. Section 5.5: M0 parses Atom and RSS with lxml. Section 14: M0 lists one category's papers with `arx today`. Appendix A: FR-ING-02 partial in M0 |
@@ -231,7 +232,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | ID | Requirement | Priority |
 |---|---|---|
 | FR-CNV-01 | When an HTML rendition is available, the system MUST convert it to a valid EPUB 3 file containing: title page (title, authors, arXiv ID, date, licence, link), navigable table of contents, body text, figures, tables, references. | P0 |
-| FR-CNV-02 | Mathematics MUST be legible on the target device. Display and inline maths SHOULD be rendered to raster images at device-appropriate resolution with the TeX source preserved as alt text (see ADR-006). | P0 |
+| FR-CNV-02 | Mathematics MUST be legible on the target device. Display and inline maths SHOULD be embedded as MathML with the TeX source preserved as an `application/x-tex` annotation (Q-3; ADR-006 rejected). | P0 |
 | FR-CNV-03 | Figures MUST be fetched, converted to greyscale, resized to the target profile width and embedded. | P0 |
 | FR-CNV-04 | Tables wider than the target width SHOULD be rendered as images; narrow tables SHOULD remain as HTML tables. | P1 |
 | FR-CNV-05 | When no HTML rendition is available, the system MUST fall back to reflowing the PDF for the target screen (k2pdfopt) and produce a PDF optimised for the device. | P1 |
@@ -279,6 +280,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-ADM-02 | The UI MUST show the job queue: pending, running, failed jobs with error details, and allow retrying or cancelling a job. | P1 |
 | FR-ADM-03 | The UI SHOULD show the current month's LLM spend versus budget. | P1 |
 | FR-ADM-04 | The service MUST expose `/healthz` (liveness) and `/readyz` (readiness, incl. database connectivity). | P0 |
+| FR-ADM-05 | The web UI and REST API MUST require an owner login: password checked against an Argon2id hash, session cookie (`Secure`, `HttpOnly`, `SameSite=Strict`), CSRF token on state-changing requests (7.2 T1). `/healthz`, `/readyz` and `/metrics` stay open; the M3 slice adds the login and logout routes to 6.7. Until then (M3), access is limited to the tailnet without login (Q-7). | P0 |
 
 ## 3.11 Data Management (DAT)
 
@@ -347,7 +349,8 @@ Rationale is recorded in ADR-001. Module boundaries are enforced in code (import
          |                |                 |                |               |
      PostgreSQL       arXiv APIs       LLM (LiteLLM)      pandoc /        SMTP relay
      + pgvector                                          k2pdfopt /
-                                                         MathJax (node)
+                                                         epubcheck
+                                                         (converter, HTTP)
 ```
 
 Layering rules:
@@ -404,7 +407,7 @@ Layering rules:
 | HTML processing | lxml / selectolax; nh3 for sanitisation | Fast, safe |
 | Embeddings | fastembed (ONNX Runtime, CPU) with `BAAI/bge-small-en-v1.5` (384-d) | Small footprint, good quality, no PyTorch dependency (ADR-004) |
 | LLM access | LiteLLM (library mode) | Provider-agnostic; supports hosted APIs and local Ollama; cost tracking (ADR-005) |
-| Maths rendering | MathJax 3 (Node.js sidecar CLI) → SVG → PNG via resvg/cairosvg | Faithful TeX rendering; PNG is reliably supported on Kindle (ADR-006) |
+| Maths rendering | pandoc `--mathml`: regenerates MathML from LaTeXML's TeX annotation (texmath), TeX kept as annotation | The target Kindle renders MathML from personal documents acceptably (Q-3 device test); no extra tooling (ADR-006 rejected) |
 | EPUB build | pandoc 3.x | Battle-tested HTML→EPUB3 conversion with TOC generation |
 | EPUB validation | epubcheck (Java, in conversion image) | Industry-standard validator |
 | PDF fallback | k2pdfopt | Purpose-built PDF reflow for e-readers |
@@ -448,7 +451,7 @@ arx/
 │   │   ├── arxiv/              # client, parsers, rate limiter
 │   │   ├── embeddings/
 │   │   ├── llm/
-│   │   ├── conversion/         # html_cleaner, math_renderer, epub_builder, pdf_reflow
+│   │   ├── conversion/         # html_cleaner, epub_builder, pdf_reflow
 │   │   ├── mail/
 │   │   ├── storage/            # file cache (local FS / object storage)
 │   │   └── db/                 # SQLAlchemy models, repositories
@@ -466,7 +469,7 @@ arx/
 │   └── evals/                  # LLM and ranking evaluation datasets
 ├── docker/
 │   ├── Dockerfile.app          # api + worker image
-│   └── Dockerfile.converter    # pandoc, epubcheck, k2pdfopt, node+mathjax
+│   └── Dockerfile.converter    # pandoc, epubcheck, k2pdfopt behind an internal HTTP API (6.5.4)
 ├── deploy/
 │   ├── compose/                # docker-compose.yml, .env.example
 │   ├── helm/arx/               # Helm chart
@@ -857,21 +860,21 @@ decay(age) = 0.5 ^ (age_days / 60)    # half-life 60 days
 
 ## 6.5 Conversion Pipeline
 
-The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite Signature Edition (11th generation), 1236 × 1648 px, `image_dpi` 300, greyscale. The migration that creates `kindle_profile` seeds it with `is_default = TRUE`. Margins subtracted from the figure width (6.5.1 step 5) are tuned during the device test (Q-3).
+The default Kindle profile (Q-1) is `paperwhite-11-signature`: Kindle Paperwhite Signature Edition (11th generation), 1236 × 1648 px, `image_dpi` 300, greyscale. The migration that creates `kindle_profile` seeds it with `is_default = TRUE`. Margins subtracted from the figure width (6.5.1 step 5) are tuned on the device.
 
 ### 6.5.1 HTML → EPUB (primary path)
 
 | Step | Operation | Details |
 |---|---|---|
 | 1 | Fetch | GET HTML rendition and its assets (images, CSS ignored). URL allowlist: arXiv HTML host only. Rate-limited through the arXiv limiter. Max response size 25 MB; timeout 60 s. |
-| 2 | Sanitise | Parse with lxml; remove scripts, iframes, forms, event handlers, external links in `src`; normalise with nh3 allowlist. |
+| 2 | Sanitise | Parse with lxml; remove scripts, iframes, forms, event handlers, external links in `src`; normalise with nh3 allowlist, which MUST include the MathML elements and attributes LaTeXML emits (FR-CNV-02). |
 | 3 | Clean structure | Remove arXiv page chrome (header, footer, navigation, "report issue" widgets, theme toggles). Keep `<article>` content without the LaTeXML front matter the title page repeats (title, authors, abstract). Normalise heading levels (h1 = title, h2 = sections; deferred from M0 to M1). |
-| 4 | Mathematics | Extract TeX from MathML `alttext`/annotation. Render via MathJax sidecar to SVG, rasterise to PNG at profile DPI; inline maths scaled to x-height, display maths centred. Cache by `sha256(tex + profile)`. Fallback when rendering fails: keep TeX source in monospace. |
+| 4 | Mathematics | Keep LaTeXML's MathML with its `application/x-tex` annotation. In step 9 pandoc regenerates MathML from that TeX (texmath) and writes it into the EPUB with the TeX as annotation (Q-3). Where texmath cannot parse an expression (e.g. author macros), pandoc keeps the TeX source as text and warns; the warning is logged. |
 | 5 | Figures | Download, convert to 8-bit greyscale, resize to profile width minus margins, optionally apply Floyd–Steinberg dithering for line art. Keep captions. |
 | 6 | Tables | Measure column count/estimated width; tables exceeding the threshold are rendered to PNG (headless rendering in converter image); others kept as HTML with compact CSS. |
 | 7 | References & links | Convert in-document citations to internal EPUB links; strip external hyperlinks except DOI/arXiv links in references. |
 | 8 | Front matter | Generate title page: title, authors, arXiv ID + version, dates, licence, abstract, LLM summary (if any, clearly labelled). |
-| 9 | Build | `pandoc --from html --to epub3 --toc --toc-depth=2 --epub-title-page=false --css kindle.css --metadata lang=en --metadata …` (step 8 supplies the title page) |
+| 9 | Build | `pandoc --from html --to epub3 --toc --toc-depth=2 --mathml --epub-title-page=false --css kindle.css --metadata lang=en --metadata …` (step 8 supplies the title page) |
 | 10 | Validate | Run `epubcheck`; errors → `conversion.status = failed` with diagnostics; warnings stored. |
 | 11 | Store | Write to storage under `conversions/<arxiv_id>/v<ver>/<profile>/<converter_version>.epub`; record SHA-256 and size. |
 
@@ -905,7 +908,7 @@ Digest queue (FR-DLV-04, FR-DLV-08, M1):
 
 ### 6.5.4 Isolation
 
-Conversion tools (pandoc, Node/MathJax, k2pdfopt, epubcheck) run in a dedicated **converter** container/image invoked by the worker over a narrow interface (subprocess in the same pod in phase 2; or a sidecar exposing a local HTTP endpoint — see Q-8). The converter has no database credentials and no outbound network access except via the worker. Each invocation has CPU time, memory (`ulimit`/cgroup) and wall-clock limits.
+Conversion tools (pandoc, k2pdfopt, epubcheck) run in a dedicated, long-running **converter** container (own image) that serves a narrow internal HTTP API; the worker is its only client (Q-8). A request carries everything one conversion step needs (the prepared HTML with its images, or the PDF, plus the profile parameters); the response carries the output file or the tool's diagnostics, so no volume is shared. The worker does all fetching (steps 1 and 5), so the converter has no database credentials and no outbound network access. The same image and API run in both phases: in Compose a `converter` service on an internal network shared only with the worker, with no published port (11.1); in k3s its own Deployment behind a ClusterIP Service (11.2), because NetworkPolicies apply per Pod and the worker needs egress. Each request has CPU time, memory (`ulimit`/cgroup) and wall-clock limits. Until the worker exists, M0 runs pandoc as a local subprocess of the CLI.
 
 ## 6.6 Integrations
 
@@ -1017,9 +1020,9 @@ Implementation notes: server-rendered Jinja templates; HTMX for partial updates;
 
 | # | Threat | Asset / Entry point | Mitigation |
 |---|---|---|---|
-| T1 | Spoofing — unauthorised access to UI/API | Web UI | Tailnet-only exposure; owner login (Argon2id password hash + session cookie: `Secure`, `HttpOnly`, `SameSite=Strict`); optional Tailscale identity headers check (see Q-7) |
+| T1 | Spoofing — unauthorised access to UI/API | Web UI | Tailnet-only exposure, the only control in M1–M2 (Q-7); from M3 owner login (FR-ADM-05: Argon2id password hash + session cookie: `Secure`, `HttpOnly`, `SameSite=Strict`); optional Tailscale identity headers check |
 | T2 | Tampering — malicious HTML/SVG in paper content (XSS, XXE) | Conversion pipeline, UI rendering | nh3 sanitisation; lxml with `resolve_entities=False`, `no_network=True`; templates autoescape; CSP `default-src 'self'` |
-| T3 | Tampering / EoP — exploit in pandoc, k2pdfopt, image libraries via crafted files | Converter | Isolated converter container: non-root, read-only rootfs, no network, seccomp default, dropped capabilities, CPU/memory/time limits; images scanned and pinned by digest |
+| T3 | Tampering / EoP — exploit in pandoc, k2pdfopt, image libraries via crafted files | Converter | Isolated converter container: non-root, read-only rootfs, no egress, ingress from the worker only, seccomp default, dropped capabilities, CPU/memory/time limits; images scanned and pinned by digest |
 | T4 | SSRF via user-supplied import URL or embedded asset URLs | Import endpoint, figure fetcher | Strict parser accepting only arXiv ID patterns / allowlisted hosts; resolved IP must be public; redirects re-validated |
 | T5 | Repudiation | Admin actions | Structured audit log of settings changes and deliveries |
 | T6 | Information disclosure — secrets in repo, image layers or logs | Git, CI, logs | gitleaks pre-commit + CI; secrets only as mounted files; log redaction filter; no secrets in image layers (checked by Trivy secret scanner) |
@@ -1235,7 +1238,7 @@ Deployment to the homelab uses either (a) a self-hosted runner on the M710q runn
 
 ## 11.1 Phase 1 — Docker Compose (Milestones M0–M3)
 
-Services: `postgres` (pgvector image), `migrate` (one-shot Alembic), `api`, `worker`, `converter`, `mailpit` (staging only). Managed through Dockhand; health monitored by Uptime Kuma via `/readyz`. The web UI is bound to the host's Tailscale interface (or published through `tailscale serve` with HTTPS) and not to `0.0.0.0`.
+Services: `postgres` (pgvector image), `migrate` (one-shot Alembic), `api`, `worker`, `converter` (on an internal network with the worker only, no published port; 6.5.4), `mailpit` (staging only). Managed through Dockhand; health monitored by Uptime Kuma via `/readyz`. The web UI is bound to the host's Tailscale interface (or published through `tailscale serve` with HTTPS) and not to `0.0.0.0`.
 
 ## 11.2 Phase 2 — Kubernetes (k3s) with GitOps (Milestone M4+)
 
@@ -1245,9 +1248,9 @@ Services: `postgres` (pgvector image), `migrate` (one-shot Alembic), `api`, `wor
 | Packaging | Helm chart `deploy/helm/arx` with values per environment (`staging`, `prod` namespaces) |
 | GitOps | Argo CD watching the `deploy/` path (or a separate GitOps repo); automated sync for staging, manual for prod |
 | Database | PostgreSQL as StatefulSet with local-path PV (or CloudNativePG operator if resources allow) |
-| Workloads | `api` Deployment; `worker` Deployment (replicas: 1, `strategy: Recreate`); converter as sidecar container in worker Pod with separate security context |
+| Workloads | `api` Deployment; `worker` Deployment (replicas: 1, `strategy: Recreate`); `converter` Deployment (replicas: 1) with a ClusterIP Service, called only by the worker (6.5.4) |
 | Jobs | Backups as Kubernetes CronJob calling `arx backup` |
-| Policies | Kyverno (signed images, non-root, limits); NetworkPolicies: default deny, explicit egress for worker (arXiv, LLM, SMTP, object storage), converter: no egress |
+| Policies | Kyverno (signed images, non-root, limits); NetworkPolicies: default deny, explicit egress for worker (arXiv, LLM, SMTP, object storage), converter: ingress from the worker only, no egress |
 | Secrets | Sealed Secrets |
 | Observability | kube-prometheus-stack (trimmed) or Prometheus + Grafana Helm charts with reduced retention |
 
@@ -1320,10 +1323,10 @@ Variables are read from the environment or a local `.env`. Keys in `.env` withou
 | ADR-003 | pgvector for vector search | Accepted | Corpus ≤ 10<sup>5</sup> vectors; HNSW in Postgres is sufficient; avoids a separate vector DB. |
 | ADR-004 | fastembed + `bge-small-en-v1.5` on CPU | Accepted | ~130 MB model, no PyTorch, adequate quality for abstracts; model name stored per embedding to allow re-indexing. |
 | ADR-005 | LiteLLM as LLM abstraction; hosted API by default, Ollama optional | Accepted | Provider independence, cost tracking; only public data leaves the host. |
-| ADR-006 | Render maths to PNG (via MathJax→SVG→PNG) rather than MathML/SVG in EPUB | Proposed — validate on device | Kindle support for MathML and SVG in personal documents is inconsistent *(verify on target device)*; PNG is universally displayed. Trade-off: larger files, non-scalable maths; mitigated by profile DPI. |
+| ADR-006 | Render maths to PNG (via MathJax→SVG→PNG) rather than MathML/SVG in EPUB | Rejected (Q-3) | Device test on the Paperwhite 11 Signature (firmware 5.19.2): an EPUB built with pandoc `--mathml` renders maths acceptably. Maths stays MathML (FR-CNV-02, 6.5.1 step 4); the converter image needs no MathJax or resvg. |
 | ADR-007 | HTMX + server-rendered templates instead of SPA | Accepted | Minimal JS, single deployable, phone-friendly. |
 | ADR-008 | GitOps pull-based deployment (Argo CD) for phase 2 | Accepted | No inbound access to homelab from CI; Git as source of truth; drift detection. |
-| ADR-009 | Converter tools isolated in separate container without network | Accepted | Main attack surface (parsing untrusted documents) is sandboxed. |
+| ADR-009 | Converter tools isolated in separate container without egress | Accepted | Main attack surface (parsing untrusted documents) is sandboxed. The worker calls the long-running converter over an internal HTTP API, the same in Compose and k3s (Q-8, 6.5.4). |
 | ADR-010 | Python 3.14 as implementation language | Accepted | Workload is I/O- and rate-limit-bound; ecosystem for ML/LLM; aligns with owner's career goals. 3.14 is the newest version all planned dependencies ship wheels for. A future performance-critical component MAY be written in Go behind an interface. |
 
 Full ADRs are maintained as OKF `Decision` concepts in `docs/knowledge/decisions/` (one file per ADR, e.g. `adr-001-modular-monolith.md`). This table is the summary; the concept file is authoritative when they differ.
@@ -1335,10 +1338,10 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 
 | Milestone | Scope | Exit criteria (Definition of Done) | Est. |
 |---|---|---|---|
-| **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then list the latest announced papers of one category (`arx today`); convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
-| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with maths/figures), deliver; epubcheck; delivery history; `arx search` over all of arXiv with *sent* / *stored* markers (FR-DSC-08, once `paper` exists); digest queue and scheduled digest EPUB (FR-DLV-04, FR-DLV-08, FR-CNV-07, after convert and deliver); minimal UI (feed list, send and queue buttons) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics; a scheduled digest of queued papers is readable on the Kindle | 3–4 weeks |
+| **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then list the latest announced papers of one category (`arx today`); convert one HTML paper with pandoc, maths as MathML; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
+| **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with figures and tables; MathML maths since M0), deliver; epubcheck; delivery history; `arx search` over all of arXiv with *sent* / *stored* markers (FR-DSC-08, once `paper` exists); digest queue and scheduled digest EPUB (FR-DLV-04, FR-DLV-08, FR-CNV-07, after convert and deliver); minimal UI (feed list, send and queue buttons), reachable over the tailnet only, without login (Q-7) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics; a scheduled digest of queued papers is readable on the Kindle | 3–4 weeks |
 | **M2 — Secure CI/CD** | Full PR pipeline (SAST, SCA, secrets, coverage gate), image build/scan/SBOM/sign, GHCR, automated deploy to homelab staging (Compose) | A PR with a planted secret or critical CVE is blocked; signed images deployed automatically | 1 week |
-| **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), Search view over arXiv and the *library* marker (FR-DSC-08, FR-UI-02), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
+| **M3 — Discovery & library** | Full web UI (FR-UI-02) with owner login (FR-ADM-05, Q-7); embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), Search view over arXiv and the *library* marker (FR-DSC-08, FR-UI-02), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
 | **M4 — Kubernetes & GitOps** | k3s via Ansible; Helm chart; Argo CD; Sealed Secrets; NetworkPolicies; Kyverno policies | Push to `main` → staging updated by Argo CD without manual steps; unsigned image rejected | 2 weeks |
 | **M5 — Observability** | Metrics, dashboards, alerts, runbooks, push notifications | Simulated failure (stop SMTP) produces alert and runbook-guided recovery | 1 week |
 | **M6 — Cloud & backups** | Terraform (AWS or Azure) for backup storage, OIDC for CI, budgets; backup CronJob; automated restore test | Successful restore from cloud backup within RTO | 1 week |
@@ -1355,7 +1358,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | ID | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|---|
 | R-1 | arXiv HTML rendition missing or broken for a share of papers | Medium | Medium | PDF reflow fallback; quality flag in UI; golden tests on diverse papers |
-| R-2 | Kindle rendering of maths/tables poorer than expected | Medium | High | Early device validation in M0/M1 (ADR-006); profile tuning |
+| R-2 | Kindle rendering of maths/tables poorer than expected | Medium | High | Maths: MathML confirmed on the target device (Q-3); author macros texmath cannot parse fall back to TeX text, covered by the heavy-maths golden set; wide tables as images (FR-CNV-04); golden tests with heavy maths; profile tuning |
 | R-3 | Changes to Send to Kindle (formats, limits, e-mail channel) | Low–Medium | High | Delivery adapter interface; alternative: download via UI / USB |
 | R-4 | arXiv endpoint or policy changes | Low | Medium | Configurable endpoints; contract tests refreshed monthly |
 | R-5 | Memory exhaustion on 8 GB host after adding k3s and monitoring | Medium | Medium | Resource budget (8.6); trimmed monitoring; phase 2 only after phase 1 measured |
@@ -1370,12 +1373,12 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 |---|---|---|---|
 | Q-1 | Which Kindle model/resolution is the default profile? | M0 | Paperwhite Signature Edition (11th gen), 1236 × 1648 px, 300 dpi, greyscale (6.5) |
 | Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) | Open; M0 uses RSS (`arx today`, 6.6.1) as a stopgap |
-| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Open; device: Paperwhite 11 Signature, firmware 5.19.2 |
+| Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Yes: an EPUB built with pandoc `--mathml` renders maths acceptably on the Paperwhite 11 Signature, firmware 5.19.2; ADR-006 rejected (FR-CNV-02, 6.5.1) |
 | Q-4 | Which SMTP provider will be used as the approved sender? | M0 | Dedicated Gmail account, app password, STARTTLS 587 (6.6.3) |
 | Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
 | Q-6 | Is CloudNativePG affordable in memory vs. a plain StatefulSet? | M4 | Open |
-| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Open |
-| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Open |
+| Q-7 | Authentication: T1 requires an owner login (Argon2id, session cookie, CSRF), but no FR, endpoint or milestone covers it. Is tailnet-only access enough until a given milestone, and which milestone adds login? | M1 | Tailnet-only, no login, for M1's minimal UI; owner login (FR-ADM-05) arrives in M3 with the full UI (7.2 T1, 14) |
+| Q-8 | Converter interface: containers in one pod cannot run each other's binaries as subprocesses (6.5.4). Choose HTTP sidecar vs. a job-scoped container per conversion, for both Compose and k3s. | M1 | Long-running HTTP service (own Deployment in k3s): the converter serves a narrow internal HTTP API to the worker, the same in Compose and k3s (6.5.4, 11.1, 11.2) |
 | Q-9 | Ranker v1: `novelty_bonus` is undefined, and the exploration rule "min. 1 when *N* ≥ 10" reuses *N* (negative history) — feed size meant? | M3 | Open |
 | Q-10 | The ranking evaluation dataset (9.4) is built from the owner's feedback. May it be committed to the repository, or must it stay private (CI artefact / private bucket)? | M3 | Open |
 | Q-11 | Database driver: spec says asyncpg; the repository already depends on psycopg 3, which also works async with SQLAlchemy and sync for Alembic/CLI. Pick one. | M0 | psycopg 3 (5.5) |
@@ -1393,8 +1396,10 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-ING-04 | 6.6.1 | `tests/domain/test_arxiv_id.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (ID and URL, HTML path), M1 (stored) |
 | FR-ING-07 | 6.2.2 | `tests/adapters/db/test_paper_repository.py::test_storing_the_same_paper_again_keeps_one_row` (`integration`) | M0 (partial: one row per arXiv ID), M1 (harvest of cross-lists) |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
+| FR-CNV-02 | 6.5.1 steps 4 and 9 | `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set with heavy maths (`golden`) in M1 | M0 (MathML), M1 (golden set) |
 | FR-CNV-07 | 6.5.3 | `tests/adapters/conversion/test_epub_builder.py`, golden digest (`golden`) | M1 |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
+| FR-ADM-05 | 7.2 T1, 12 | `tests/web/test_auth.py` | M3 |
 | FR-DLV-01 | 6.6.1 | `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (CLI), M1 (UI) |
 | FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py`, `tests/test_bootstrap.py`, `tests/cli/test_main.py` | M0 |
 | FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py`, `tests/test_bootstrap.py` | M0 (partial: reject), M1 (downscale option) |
@@ -1431,4 +1436,4 @@ Category list SHOULD be loaded from arXiv's taxonomy at setup rather than hard-c
 - RFC 2119 (requirement levels), RFC 9457 (Problem Details for HTTP APIs)
 - OWASP ASVS 4.x; OWASP Top 10; SLSA framework; CycloneDX specification
 - PostgreSQL documentation: `SELECT … FOR UPDATE SKIP LOCKED`, `LISTEN/NOTIFY`, advisory locks
-- pgvector, fastembed, LiteLLM, pandoc, epubcheck, k2pdfopt, MathJax project documentation
+- pgvector, fastembed, LiteLLM, pandoc, epubcheck, k2pdfopt project documentation

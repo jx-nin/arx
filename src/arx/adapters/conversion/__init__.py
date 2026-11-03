@@ -1,1 +1,1 @@
-"""Document conversion adapters (pandoc, later MathJax, k2pdfopt, epubcheck)."""
+"""Document conversion adapters (pandoc, later k2pdfopt, epubcheck)."""

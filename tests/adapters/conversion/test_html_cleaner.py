@@ -30,6 +30,12 @@ def test_keeps_article_content(expected: str) -> None:
     assert expected in article()
 
 
+@pytest.mark.req("FR-CNV-02")
+def test_keeps_mathml_with_its_tex_annotation() -> None:
+    tex = '<annotation encoding="application/x-tex">k\\ll n</annotation>'
+    assert f"{tex}</semantics></math>" in article()
+
+
 @pytest.mark.req("FR-CNV-01")
 @pytest.mark.parametrize(
     "chrome",

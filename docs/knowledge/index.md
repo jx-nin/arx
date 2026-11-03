@@ -24,10 +24,10 @@ okf_version: "0.2"
 * [ADR-003 pgvector](/decisions/adr-003-pgvector.md) - vector search inside PostgreSQL
 * [ADR-004 fastembed](/decisions/adr-004-fastembed.md) - CPU embeddings with bge-small-en-v1.5
 * [ADR-005 LiteLLM](/decisions/adr-005-litellm.md) - provider-agnostic LLM gateway
-* [ADR-006 Maths to PNG](/decisions/adr-006-math-png.md) - proposed, pending device test
+* [ADR-006 Maths to PNG](/decisions/adr-006-math-png.md) - rejected after the device test (Q-3)
 * [ADR-007 HTMX UI](/decisions/adr-007-htmx.md) - server-rendered templates, no SPA
 * [ADR-008 GitOps](/decisions/adr-008-gitops.md) - Argo CD pull deployment in phase 2
-* [ADR-009 Isolated converter](/decisions/adr-009-converter-isolation.md) - sandboxed document tooling
+* [ADR-009 Isolated converter](/decisions/adr-009-converter-isolation.md) - sandboxed document tooling behind an internal HTTP API
 * [ADR-010 Python 3.14](/decisions/adr-010-python.md) - newest version all dependencies support
 * [Test-driven development](/decisions/tdd.md) - test-first in every layer, named exceptions, one commit per behaviour
 * [Database driver psycopg 3](/decisions/db-driver.md) - one driver for async app code and sync Alembic/CLI
@@ -39,3 +39,5 @@ okf_version: "0.2"
 * [RSS as the M0 daily listing source](/decisions/listing-source-m0.md) - stopgap for Q-2, which stays open for the M1 spike
 * [Keyword search of all of arXiv](/decisions/arxiv-search.md) - `arx search` with an in-Arx marker per result (sent / stored in M1), CLI in M1, Search view in M3
 * [Digest of a queue](/decisions/digest-queue.md) - owner-picked queue sent as one digest EPUB daily or weekly, in M1
+* [Maths as MathML](/decisions/maths-mathml.md) - pandoc --mathml, TeX kept as annotation; answers Q-3
+* [Web UI access before owner login](/decisions/ui-access.md) - tailnet-only until owner login in M3; answers Q-7

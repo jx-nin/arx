@@ -13,6 +13,11 @@ HTML = """<!DOCTYPE html>
 <html><head><title>ignored</title></head><body>
 <h2>1 Introduction</h2><p>Long documents strain dense attention.</p>
 <h2>2 Method</h2><p>We keep the top-k keys per query.</p>
+<p>Each query attends to
+<math xmlns="http://www.w3.org/1998/Math/MathML" alttext="k\\ll n" display="inline">
+<semantics><mrow><mi>k</mi><mo>≪</mo><mi>n</mi></mrow>
+<annotation encoding="application/x-tex">k\\ll n</annotation></semantics></math>
+keys.</p>
 </body></html>"""
 
 PAPER = Paper(
@@ -71,6 +76,32 @@ def test_table_of_contents_lists_sections(epub: zipfile.ZipFile, heading: str) -
 @pytest.mark.req("FR-CNV-01")
 def test_embeds_the_kindle_stylesheet(epub: zipfile.ZipFile) -> None:
     assert KINDLE_CSS.read_text().strip() in read(epub, ".css")
+
+
+@pytest.mark.req("FR-CNV-02")
+def test_writes_maths_as_mathml_keeping_the_tex(epub: zipfile.ZipFile) -> None:
+    chapters = read(epub, ".xhtml")
+
+    assert '<math display="inline"' in chapters
+    assert '<annotation encoding="application/x-tex">k\\ll n</annotation>' in chapters
+    # pandoc's non-MathML fallback: TeX or approximated HTML in a span.
+    assert 'class="math' not in chapters
+
+
+@pytest.mark.req("FR-CNV-02")
+def test_keeps_unconvertible_tex_as_text_and_logs_it(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    html = (
+        '<p><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>x</mi>'
+        '<annotation encoding="application/x-tex">\\authormacro{x}</annotation>'
+        "</semantics></math></p>"
+    )
+    with caplog.at_level(logging.WARNING):
+        epub = zipfile.ZipFile(BytesIO(PandocEpubBuilder().build(html, PAPER)))
+
+    assert "\\authormacro{x}" in read(epub, ".xhtml")
+    assert "Could not convert TeX math" in caplog.text
 
 
 @pytest.mark.req("FR-CNV-01")

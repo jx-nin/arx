@@ -1,16 +1,15 @@
 ---
 type: Decision
-title: "ADR-006 Maths rendered to PNG"
-description: Maths is rendered MathJax to SVG to PNG rather than embedded as MathML or SVG.
+title: "ADR-006 Maths rendered to PNG (rejected)"
+description: Rejected after the device test (Q-3); replaced by maths as MathML via pandoc.
 tags: [conversion, kindle, adr]
-status: draft
-generated: { by: "agent:claude-opus-5-5", at: 2026-10-30T00:00:00Z }
+status: deprecated
+generated: { by: "agent:claude-opus-5-5", at: 2026-11-03T00:00:00Z }  # decided by human:jx-nin
 ---
 
 # Decision
 
-* Proposed: Kindle support for MathML and SVG in personal documents is inconsistent, and PNG always displays.
-* Trade-off: larger files and maths that doesn't scale, offset by the profile DPI.
-* Still to check on the target device (spec Q-3) before this is accepted.
+* Rejected (spec Q-3). The proposal was MathJax to SVG to PNG, because Kindle support for MathML in personal documents seemed inconsistent.
+* The owner's device test showed MathML renders acceptably; see [maths as MathML](/decisions/maths-mathml.md).
 
 Summary row: [specification](/specs/tds.md), section 13.

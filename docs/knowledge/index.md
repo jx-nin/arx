@@ -37,3 +37,5 @@ okf_version: "0.2"
 * [Logging with stdlib and structlog](/decisions/logging.md) - stdlib loggers in modules, structlog JSON formatter in the entry point
 * [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md) - in adapters/arxiv/, advisory lock across workers
 * [RSS as the M0 daily listing source](/decisions/listing-source-m0.md) - stopgap for Q-2, which stays open for the M1 spike
+* [Keyword search of all of arXiv](/decisions/arxiv-search.md) - `arx search` with an in-Arx marker per result (sent / stored in M1), CLI in M1, Search view in M3
+* [Digest of a queue](/decisions/digest-queue.md) - owner-picked queue sent as one digest EPUB daily or weekly, in M1

@@ -163,6 +163,16 @@ def test_server_errors_raise_os_error() -> None:
 
 
 @pytest.mark.req("FR-ING-04")
+def test_error_statuses_are_reported_on_one_line() -> None:
+    client, _ = make_client(responses={"/html/2401.01234v1": httpx.Response(503)})
+
+    with pytest.raises(OSError) as raised:
+        client.html(PAPER)
+
+    assert "\n" not in str(raised.value)
+
+
+@pytest.mark.req("FR-ING-04")
 def test_network_errors_raise_os_error() -> None:
     def fail(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("no route", request=request)
@@ -185,3 +195,97 @@ def test_requests_are_spaced_by_the_minimum_interval() -> None:
     client.html(PAPER)
 
     assert clock.sleeps == [2.0]
+
+
+def rss_response(fixture: str) -> dict[str, httpx.Response]:
+    content = (FIXTURES / fixture).read_bytes()
+    return {"/rss/cs.LG": httpx.Response(200, content=content)}
+
+
+@pytest.mark.contract
+@pytest.mark.req("FR-ING-02")
+def test_announcements_read_the_category_feed() -> None:
+    client, requests = make_client(responses=rss_response("rss_cs.LG.xml"))
+
+    announcements = client.announcements("cs.LG")
+
+    assert [(a.arxiv_id, a.version, a.announce_type) for a in announcements] == [
+        ("2611.00015", 1, "new"),
+        ("2611.02335", 1, "new"),
+        ("2611.00008", 1, "cross"),
+        ("2303.03496", 2, "replace"),
+        ("1903.07745", 4, "replace-cross"),
+    ]
+    first = announcements[0]
+    assert first.title == (
+        "Output-Aware Block Influence: Jacobian-Lens Weighting for Depth Pruning"
+    )
+    assert first.authors[:2] == ("Kyle Lemoi", "Jonathan Yong")
+    assert len(first.authors) == 6
+    assert requests[0].url == "https://rss.arxiv.org/rss/cs.LG"
+
+
+@pytest.mark.contract
+@pytest.mark.req("FR-ING-02")
+def test_announcements_drop_affiliations_from_author_names() -> None:
+    client, _ = make_client(responses=rss_response("rss_cs.LG.xml"))
+
+    authors = client.announcements("cs.LG")[1].authors
+
+    assert authors[0] == "Farnoush Rezaei Jafari"
+    assert authors[-1] == "Daniel Coelho de Castro"
+    assert len(authors) == 9
+
+
+@pytest.mark.contract
+@pytest.mark.req("FR-ING-02")
+def test_announcements_of_a_day_without_announcement_are_empty() -> None:
+    client, _ = make_client(responses=rss_response("rss_empty.xml"))
+
+    assert client.announcements("cs.LG") == []
+
+
+@pytest.mark.contract
+@pytest.mark.req("FR-ING-02")
+def test_announcements_report_an_item_without_arxiv_id() -> None:
+    rss = (FIXTURES / "rss_cs.LG.xml").read_text().replace("oai:arXiv.org:", "")
+    client, _ = make_client(responses={"/rss/cs.LG": httpx.Response(200, text=rss)})
+
+    with pytest.raises(ValueError, match="arXiv RSS item without arXiv ID"):
+        client.announcements("cs.LG")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_announcements_report_a_feed_that_is_not_xml() -> None:
+    page = httpx.Response(200, text="<html>down for maintenance")
+    client, _ = make_client(responses={"/rss/cs.LG": page})
+
+    with pytest.raises(ValueError, match="arXiv RSS returned malformed XML"):
+        client.announcements("cs.LG")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_announcements_of_an_unknown_category_raise_os_error() -> None:
+    client, _ = make_client(responses={"/rss/cs.XX": httpx.Response(400)})
+
+    with pytest.raises(OSError, match="400"):
+        client.announcements("cs.XX")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_announcements_without_a_feed_raise_value_error() -> None:
+    client, _ = make_client()
+
+    with pytest.raises(ValueError, match="arXiv has no feed for cs.XX"):
+        client.announcements("cs.XX")
+
+
+@pytest.mark.req("NFR-16")
+def test_feed_requests_are_spaced_like_the_others() -> None:
+    clock = FakeClock()
+    client, _ = make_client(responses=rss_response("rss_empty.xml"), clock=clock)
+
+    client.html(PAPER)
+    client.announcements("cs.LG")
+
+    assert clock.sleeps == [3.0]

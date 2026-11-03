@@ -6,15 +6,86 @@ each secret file (spec 7.4).
 
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    DotEnvSettingsSource,
+    NoDecode,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 KINDLE_DOMAIN = "@kindle.com"
+ENV_PREFIX = "ARX_"
 
 
-class Settings(BaseSettings):
+class _CheckedDotEnvSource(DotEnvSettingsSource):
+    """Reads ``.env`` and rejects ``ARX_*`` keys that no settings class defines."""
+
+    def __call__(self) -> dict[str, Any]:
+        """Return the ``.env`` values after checking the ``ARX_*`` key names.
+
+        :returns: Values for the settings class, by field name.
+        :raises ValueError: If an ``ARX_*`` key names no field of any settings
+            class, e.g. a misspelt ``ARX_SMPT_HOST``.
+        """
+        known = Settings.model_fields.keys() | DatabaseSettings.model_fields.keys()
+        prefix = ENV_PREFIX.lower()
+        unknown = sorted(
+            key.upper()
+            for key in self.env_vars
+            if key.startswith(prefix) and key.removeprefix(prefix) not in known
+        )
+        if unknown:
+            raise ValueError(f"unknown settings in .env: {', '.join(unknown)}")
+        return super().__call__()
+
+
+class _ArxSettings(BaseSettings):
+    """Base of the settings classes: ``ARX_*`` variables and one shared ``.env``.
+
+    Each class ignores the other's fields and keys of other tools (e.g. Compose's
+    ``POSTGRES_*``), while misspelt ``ARX_*`` keys in ``.env`` are rejected.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix=ENV_PREFIX, env_file=".env", extra="ignore"
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Replace the ``.env`` source with one that checks ``ARX_*`` key names.
+
+        :param settings_cls: The settings class being loaded.
+        :param init_settings: Values passed to the constructor.
+        :param env_settings: Environment variables.
+        :param dotenv_settings: The default ``.env`` source, for its file path.
+        :param file_secret_settings: Secrets directory source.
+        :returns: The sources in priority order.
+        :raises TypeError: If pydantic-settings passes another ``.env`` source.
+        """
+        if not isinstance(dotenv_settings, DotEnvSettingsSource):
+            raise TypeError("expected pydantic-settings' default .env source")
+        # Rebuilt from the file only: the key check assumes the default
+        # case-insensitive ARX_ prefix of model_config.
+        checked = _CheckedDotEnvSource(
+            settings_cls,
+            env_file=dotenv_settings.env_file,
+            env_file_encoding=dotenv_settings.env_file_encoding,
+        )
+        return init_settings, env_settings, checked, file_secret_settings
+
+
+class Settings(_ArxSettings):
     """Arx configuration; each field reads the variable ``ARX_<FIELD>``.
 
     :param smtp_host: SMTP submission host.
@@ -29,8 +100,6 @@ class Settings(BaseSettings):
     :param arxiv_user_agent: ``User-Agent`` for arXiv requests; ``None`` names
         Arx and the sender address as contact.
     """
-
-    model_config = SettingsConfigDict(env_prefix="ARX_", env_file=".env")
 
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587
@@ -61,3 +130,16 @@ class Settings(BaseSettings):
         if foreign:
             raise ValueError(f"not {KINDLE_DOMAIN} addresses: {', '.join(foreign)}")
         return frozenset(recipients)
+
+
+class DatabaseSettings(_ArxSettings):
+    """Database configuration; each field reads the variable ``ARX_<FIELD>``.
+
+    Kept apart from :class:`Settings` so that commands without a database need
+    no database settings, and migrations need no delivery settings.
+
+    :param database_url_file: File holding the PostgreSQL URL
+        (``postgresql://user:password@host/db``), which includes the password.
+    """
+
+    database_url_file: Path = Path("/run/secrets/database_url")

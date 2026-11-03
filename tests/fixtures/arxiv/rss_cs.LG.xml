@@ -1,0 +1,85 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<rss xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" version="2.0">
+  <channel>
+    <title>cs.LG updates on arXiv.org</title>
+    <link>http://rss.arxiv.org/rss/cs.LG</link>
+    <description>cs.LG updates on the arXiv.org e-print archive.</description>
+    <atom:link href="http://rss.arxiv.org/rss/cs.LG" rel="self" type="application/rss+xml"/>
+    <docs>http://www.rssboard.org/rss-specification</docs>
+    <language>en-us</language>
+    <lastBuildDate>Tue, 03 Nov 2026 08:49:57 +0000</lastBuildDate>
+    <managingEditor>rss-help@arxiv.org</managingEditor>
+    <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+    <skipDays>
+      <day>Saturday</day>
+      <day>Sunday</day>
+    </skipDays>
+    <item>
+      <title>Output-Aware Block Influence: Jacobian-Lens Weighting for Depth Pruning</title>
+      <link>https://arxiv.org/abs/2611.00015</link>
+      <description>arXiv:2611.00015v1 Announce Type: new 
+Abstract: Depth pruning removes entire transformer blocks and therefore depends on a reliable criterion for identifying which blocks can be removed. Block Influence (BI) ranks blocks by how minimally they rotate the hidden state. However, local redundancy does not necessarily imply downstream irrelevance. We address this limitation using the Jacobian Lens (J-Lens) neural artifact, a map transporting perturbations at a layer to the final residual stream. At a common sparsity level, pruning scores applying J-Lens transportation to $BI$, what we call $J-BI$, were found to improve post-pruning accuracy by up to 19 points over $BI$ while reducing damage to perplexity for Qwen3-8B, Llama-3.1-8B-IT, and Gemma-3-12B-IT. We also perform a single-block ablation study and use J-Lens probing to explain why the proposed scores improved performance.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2611.00015v1</guid>
+      <category>cs.LG</category>
+      <category>cs.AI</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>new</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Kyle Lemoi, Jonathan Yong, Shubhankar Tripathy, Priestley Fernandes, Anirban Majumder, Zarreen Reza</dc:creator>
+    </item>
+    <item>
+      <title>Attribution-based diagnostics for single-cell foundation models</title>
+      <link>https://arxiv.org/abs/2611.02335</link>
+      <description>arXiv:2611.02335v1 Announce Type: new 
+Abstract: Single-cell RNA foundation models (scFMs) are increasingly used for in-silico biological discovery, yet predictive performance alone does not reveal whether their decisions rely on biologically meaningful signals or model-specific shortcuts. We systematically investigate post-hoc attribution of downstream predictions across two tasks: cell-type annotation using pretrained Cell2Sentence and scGPT models, and perturbation prediction using scGPT+STATE in a controlled setting. For cell annotation, we use attribution to assess whether predictions rely on established marker genes and how their relevance varies with model architecture, expression rank, and the surrounding cellular context. For perturbation prediction, we compare attribution patterns with known regulatory ground-truth in a synthetic setting to assess what they reveal about the model's learned computations. Across these tasks, attribution reveals biological feature use, contextual interactions, contributions from different input pathways, learning progression, associations with prediction quality, and potential pitfalls that are not fully captured by standard performance metrics. Experiments with complete and limited regulatory knowledge further demonstrate that conclusions drawn from attribution depend strongly on the choice of biological reference, baseline, and null model. Together, these findings highlight the value of attribution as a flexible post-hoc diagnostic for understanding model behavior, identifying potential issues, and informing the development of scFMs.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2611.02335v1</guid>
+      <category>cs.LG</category>
+      <category>q-bio.QM</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>new</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Farnoush Rezaei Jafari (Technical University of Berlin, BIFOLD - Berlin Institute for the Foundations of Learning and Data), Tristan Lazard (Microsoft Research), Kenza Bouzid (Microsoft Research), Shruthi Bannur (Microsoft Research), Jeremiah Wander (Microsoft Research), Ashley Mae Conard (Microsoft Research), Stephanie Hyland (Microsoft Research), Lorin Crawford (Microsoft Research), Daniel Coelho de Castro (Microsoft Research)</dc:creator>
+    </item>
+    <item>
+      <title>Neonatal EEG Seizure Prediction with Quantum Inspired Continuous-Variable (Bosonic) Reservoir Computing</title>
+      <link>https://arxiv.org/abs/2611.00008</link>
+      <description>arXiv:2611.00008v1 Announce Type: cross 
+Abstract: We study short-horizon neonatal seizure prediction on Helsinki-style (HUH) preprocessed EEG feature tables using quantum-inspired reservoir computing. Under strict subject-wise cross-validation on imbalanced preictal--interictal windows, we test whether reservoir constructions shaped after (i) gate-based qubit dynamics and (ii) continuous-variable (bosonic/photonic) dynamics provide a practical sequence encoder relative to strong classical baselines. Both reservoirs are executed here purely in classical simulation on a single GPU; accordingly, we do not claim quantum advantage, but rather evaluate whether quantum-shaped dynamics act as useful, low-footprint random feature maps with a trained linear readout. We compare against Random Forests and RBF--SVMs, and report AUROC, AUPRC, per-subject AUPRC, expected calibration error, and stratified bootstrap confidence intervals. Across our experiments, the CV/bosonic reservoir is consistently competitive and can improve AUPRC over the baselines, while the gate-style reservoir is more sensitive to hyperparameters. These results suggest that quantum-inspired, photonics-motivated reservoirs can be practical sequence encoders for neonatal EEG feature tables under conservative subject-wise evaluation.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2611.00008v1</guid>
+      <category>physics.med-ph</category>
+      <category>cs.LG</category>
+      <category>quant-ph</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>cross</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Krishna Bhatia, Chun-Yu Lin</dc:creator>
+    </item>
+    <item>
+      <title>Knowledge Based Wind Turbine Gearbox Fault Detection Using Sparse Filtering and Graph Neural Networks</title>
+      <link>https://arxiv.org/abs/2303.03496</link>
+      <description>arXiv:2303.03496v2 Announce Type: replace 
+Abstract: Reliable gearbox condition monitoring requires methods that can process high-frequency vibration measurements while retaining information about sensor locations and drivetrain structure. We investigate a two-stage framework that combines sparse filtering with graph neural networks for wind turbine gearbox fault detection. Sparse filtering learns compact features from vibration segments, and a knowledge-based graph associates these features with gearbox components, sensors, and health-state entities. A basic graph neural network and a gated graph neural network produce a single health prediction, whereas a gated graph sequence neural network generates structured sequences that associate a predicted state with component and sensor information. Experiments use eight accelerometer channels from the National Renewable Energy Laboratory gearbox condition-monitoring benchmark. With 100 learned features, the sparse-filtering gated graph neural network achieves a reported classification accuracy of 93.74%, compared with 89.28% for its manually engineered feature counterpart. The sequence model achieves reported accuracies of 90.73% and 90.36% in the one- and two-fault-signal cases, respectively. These results support the use of learned vibration representations within a structured sensor graph. The evidence is restricted to the evaluated benchmark and operating condition; independent component localization, transfer across turbines, and deployment latency require further validation.</description>
+      <guid isPermaLink="false">oai:arXiv.org:2303.03496v2</guid>
+      <category>cs.LG</category>
+      <category>cs.SY</category>
+      <category>eess.SY</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>replace</arxiv:announce_type>
+      <dc:rights>http://creativecommons.org/licenses/by/4.0/</dc:rights>
+      <dc:creator>Jinsong Wang, Kenneth A. Loparo</dc:creator>
+    </item>
+    <item>
+      <title>Attention-Based Multiple Instance Regression for Remote Sensing</title>
+      <link>https://arxiv.org/abs/1903.07745</link>
+      <description>arXiv:1903.07745v4 Announce Type: replace-cross 
+Abstract: In this paper, we propose a novel approach to tackle the multiple instance regression (MIR) problem. This problem arises when the data is a collection of bags, where each bag is made of multiple instances corresponding to the same unique real-valued label. Our goal is to train a regression model which maps the instances of an unseen bag to its unique label. This MIR setting is common to remote sensing applications where there is high variability in the measurements and low geographical variability in the quantity being estimated. Our approach, in contrast to most competing methods, does not make the assumption that there exists a prime instance responsible for the label in each bag. Instead, we treat each bag as a set (i.e, an unordered sequence) of instances and learn to map each bag to its unique label by using all the instances in each bag. This is done by implementing an order-invariant operation characterized by a particular type of attention mechanism. This method is very flexible as it does not require domain knowledge nor does it make any assumptions about the distribution of the instances within each bag. We test our algorithm on five real world datasets and outperform previous state-of-the-art on three of the datasets. In addition, we augment our feature space by adding the moments of each feature for each bag, as extra features, and show that while the first moments lead to higher accuracy, there is a diminishing return.</description>
+      <guid isPermaLink="false">oai:arXiv.org:1903.07745v4</guid>
+      <category>stat.ML</category>
+      <category>cs.LG</category>
+      <pubDate>Tue, 03 Nov 2026 00:00:00 -0500</pubDate>
+      <arxiv:announce_type>replace-cross</arxiv:announce_type>
+      <dc:rights>http://arxiv.org/licenses/nonexclusive-distrib/1.0/</dc:rights>
+      <dc:creator>Thomas Uriot</dc:creator>
+    </item>
+  </channel>
+</rss>

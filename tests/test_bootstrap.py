@@ -6,10 +6,10 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from arx.bootstrap import build_arxiv_client, build_delivery_service
+from arx.bootstrap import build_arxiv_client, build_delivery_service, build_engine
 from arx.domain.paper import Paper
 from arx.services.delivery import AttachmentTooLargeError
-from arx.settings import Settings
+from arx.settings import DatabaseSettings, Settings
 
 PAPER = Paper(
     arxiv_id="2401.01234",
@@ -122,3 +122,16 @@ def test_arxiv_client_follows_redirects(
     html = build_arxiv_client(make_settings(tmp_path)).html(PAPER)
 
     assert html == "<html>paper</html>"
+
+
+def test_engine_reads_the_url_from_the_secret_file_and_uses_psycopg(
+    tmp_path: Path,
+) -> None:
+    url_file = tmp_path / "database_url"
+    url_file.write_text("postgresql://arxiv:s3cret@localhost:5432/arxiv\n")
+
+    engine = build_engine(DatabaseSettings(_env_file=None, database_url_file=url_file))  # type: ignore[call-arg]
+
+    assert engine.url.drivername == "postgresql+psycopg"
+    assert engine.url.password == "s3cret"
+    assert engine.url.database == "arxiv"

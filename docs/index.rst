@@ -10,6 +10,9 @@ arx
 .. automodule:: arx.domain.arxiv_id
    :members:
 
+.. automodule:: arx.domain.announcement
+   :members:
+
 .. automodule:: arx.services.conversion
    :members:
 
@@ -26,6 +29,9 @@ arx
    :members:
 
 .. automodule:: arx.services.kindle
+   :members:
+
+.. automodule:: arx.services.listing
    :members:
 
 .. automodule:: arx.adapters.mail.smtp_mailer

@@ -1231,7 +1231,7 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 
 # 12. Configuration Reference
 
-Variables are read from the environment or a local `.env`. Keys in `.env` without the `ARX_` prefix (e.g. Compose's `POSTGRES_*`) are ignored; an `ARX_*` key that no setting defines is rejected, so a misspelt name fails at start-up.
+Variables are read from the environment or a local `.env`. Keys in `.env` without the `ARX_` prefix (e.g. Compose's `POSTGRES_*`) are ignored; an `ARX_*` key in `.env` that no implemented setting defines is rejected, so a misspelt name fails at start-up. Variables are implemented with the milestone that first needs them; until then their keys are rejected too (M0 implements the SMTP, delivery, arXiv and database variables).
 
 | Variable | Default | Description |
 |---|---|---|

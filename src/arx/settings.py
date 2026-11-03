@@ -75,6 +75,8 @@ class _ArxSettings(BaseSettings):
         """
         if not isinstance(dotenv_settings, DotEnvSettingsSource):
             raise TypeError("expected pydantic-settings' default .env source")
+        # Rebuilt from the file only: the key check assumes the default
+        # case-insensitive ARX_ prefix of model_config.
         checked = _CheckedDotEnvSource(
             settings_cls,
             env_file=dotenv_settings.env_file,

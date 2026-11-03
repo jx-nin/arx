@@ -143,3 +143,37 @@ def test_both_settings_share_one_env_file(
 
     assert settings.delivery_from == "arx.sender@gmail.com"
     assert database.database_url_file == Path("/tmp/db_url")
+
+
+def test_env_file_keys_of_other_tools_are_ignored(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for name in REQUIRED:
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "".join(f"{name}={value}\n" for name, value in REQUIRED.items())
+        + "POSTGRES_USER=arxiv\nDATABASE_URL=postgresql://x\n"
+    )
+
+    settings = Settings(_env_file=env_file)  # type: ignore[call-arg]
+
+    assert settings.delivery_from == "arx.sender@gmail.com"
+
+
+@pytest.mark.parametrize("settings_class", [Settings, DatabaseSettings])
+def test_misspelt_arx_keys_in_the_env_file_are_rejected(
+    settings_class: type[Settings] | type[DatabaseSettings],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    for name in REQUIRED:
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "".join(f"{name}={value}\n" for name, value in REQUIRED.items())
+        + "ARX_SMPT_HOST=smtp.example.com\n"
+    )
+
+    with pytest.raises(ValueError, match="ARX_SMPT_HOST"):
+        settings_class(_env_file=env_file)  # type: ignore[call-arg]

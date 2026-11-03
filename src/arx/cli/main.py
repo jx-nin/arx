@@ -9,7 +9,11 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from arx.bootstrap import build_delivery_service, build_kindle_service
+from arx.bootstrap import (
+    build_delivery_service,
+    build_kindle_service,
+    build_listing_service,
+)
 from arx.domain.arxiv_id import VERSIONED_ID
 from arx.domain.paper import Paper
 from arx.settings import Settings
@@ -20,9 +24,9 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     :param argv: Arguments without the program name; ``None`` reads
         ``sys.argv``.
-    :raises SystemExit: On invalid arguments, an unknown paper or one without
-        HTML rendition, a rejected delivery, invalid settings or a failed file,
-        arXiv or SMTP operation, with the reason.
+    :raises SystemExit: On invalid arguments, an unknown paper, category or
+        one without HTML rendition, a rejected delivery, invalid settings or a
+        failed file, arXiv or SMTP operation, with the reason.
     """
     args = _parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
@@ -40,7 +44,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 def _parser() -> argparse.ArgumentParser:
     """Build the argument parser.
 
-    :returns: Parser for the ``kindle`` and ``send`` commands.
+    :returns: Parser for the ``kindle``, ``today`` and ``send`` commands.
     """
     parser = argparse.ArgumentParser(
         prog="arx", description="Fetch and read arXiv papers."
@@ -52,6 +56,11 @@ def _parser() -> argparse.ArgumentParser:
     kindle.add_argument("paper", help="arXiv ID or abs, pdf or html URL")
     kindle.add_argument("--to", required=True, help="allowlisted Kindle address")
     kindle.set_defaults(run=_kindle)
+    today = commands.add_parser(
+        "today", help="list a category's latest announced papers (FR-ING-02)"
+    )
+    today.add_argument("category", help="arXiv category, e.g. cs.LG")
+    today.set_defaults(run=_today)
     send = commands.add_parser("send", help="e-mail an EPUB to a Kindle (FR-DLV-02)")
     send.set_defaults(run=_send)
     send.add_argument("epub", type=Path, help="EPUB file to send")
@@ -88,6 +97,27 @@ def _kindle(args: argparse.Namespace) -> None:
     """
     service = build_kindle_service(Settings())  # type: ignore[call-arg]
     service.send(args.paper, args.to)
+
+
+def _today(args: argparse.Namespace) -> None:
+    """Print one line per paper in the category's latest announcement.
+
+    :param args: Parsed ``today`` arguments.
+    :raises ValueError: If settings are invalid, the category is malformed or
+        arXiv has no feed for it.
+    :raises OSError: If the arXiv request fails.
+    """
+    service = build_listing_service(Settings())  # type: ignore[call-arg]
+    papers = service.today(args.category)
+    if not papers:
+        print(
+            f"No new papers in {args.category} today; arXiv announces none on "
+            "weekends and holidays."
+        )
+    for paper in papers:
+        mark = "[cross] " if paper.announce_type == "cross" else ""
+        first_author = paper.authors[0] if paper.authors else "unknown author"
+        print(f"{paper.arxiv_id}v{paper.version}  {mark}{paper.title} — {first_author}")
 
 
 def _send(args: argparse.Namespace) -> None:

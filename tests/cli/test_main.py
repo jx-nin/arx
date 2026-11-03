@@ -185,6 +185,7 @@ def arxiv(smtp: MagicMock, monkeypatch: pytest.MonkeyPatch) -> dict[str, bytes]:
     """Serve arXiv paths from this dict; unknown paths are 404."""
     pages = {
         "/api/query": (FIXTURES / "arxiv" / "api_2401.01234.xml").read_bytes(),
+        "/rss/cs.LG": (FIXTURES / "arxiv" / "rss_cs.LG.xml").read_bytes(),
         "/html/2401.01234v1": (
             FIXTURES / "conversion" / "arxiv_minimal.html"
         ).read_bytes(),
@@ -239,3 +240,47 @@ def test_kindle_with_an_unparsable_reference_exits_with_the_reason(
 ) -> None:
     with pytest.raises(SystemExit, match="not an arXiv ID"):
         main(["kindle", "https://example.com/paper", "--to", RECIPIENT])
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_prints_new_papers_and_marks_cross_lists(
+    arxiv: dict[str, bytes], capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["today", "cs.LG"])
+
+    assert capsys.readouterr().out.splitlines() == [
+        "2611.00015v1  Output-Aware Block Influence: Jacobian-Lens Weighting for "
+        "Depth Pruning — Kyle Lemoi",
+        "2611.02335v1  Attribution-based diagnostics for single-cell foundation "
+        "models — Farnoush Rezaei Jafari",
+        "2611.00008v1  [cross] Neonatal EEG Seizure Prediction with Quantum Inspired "
+        "Continuous-Variable (Bosonic) Reservoir Computing — Krishna Bhatia",
+    ]
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_without_announcement_says_so(
+    arxiv: dict[str, bytes], capsys: pytest.CaptureFixture[str]
+) -> None:
+    arxiv["/rss/cs.LG"] = (FIXTURES / "arxiv" / "rss_empty.xml").read_bytes()
+
+    main(["today", "cs.LG"])
+
+    [line] = capsys.readouterr().out.splitlines()
+    assert line.startswith("No new papers in cs.LG")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_with_a_malformed_category_exits_with_the_reason(
+    arxiv: dict[str, bytes],
+) -> None:
+    with pytest.raises(SystemExit, match="not an arXiv category"):
+        main(["today", "cs.LG?x=1"])
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_without_a_feed_exits_with_the_reason(
+    arxiv: dict[str, bytes],
+) -> None:
+    with pytest.raises(SystemExit, match="no feed for cs.XX"):
+        main(["today", "cs.XX"])

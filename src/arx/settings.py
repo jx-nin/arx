@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     :param delivery_allowed_recipients: Lower-cased ``@kindle.com`` addresses
         delivery may send to, comma-separated in the environment (FR-DLV-07).
     :param delivery_max_bytes: Raw attachment size limit (FR-DLV-03).
+    :param arxiv_min_interval_s: Minimum seconds between arXiv requests (NFR-16).
+    :param arxiv_user_agent: ``User-Agent`` for arXiv requests; ``None`` names
+        Arx and the sender address as contact.
     """
 
     model_config = SettingsConfigDict(env_prefix="ARX_", env_file=".env")
@@ -36,6 +39,8 @@ class Settings(BaseSettings):
     delivery_from: str
     delivery_allowed_recipients: Annotated[frozenset[str], NoDecode]
     delivery_max_bytes: int = 20 * 1024 * 1024
+    arxiv_min_interval_s: float = 3.0
+    arxiv_user_agent: str | None = None
 
     @field_validator("delivery_allowed_recipients", mode="before")
     @classmethod

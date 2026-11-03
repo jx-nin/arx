@@ -2,7 +2,6 @@
 
 import argparse
 import logging
-import re
 import sys
 from collections.abc import Sequence
 from datetime import UTC, date, datetime, time
@@ -10,15 +9,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from arx.bootstrap import build_delivery_service
+from arx.bootstrap import build_delivery_service, build_kindle_service
+from arx.domain.arxiv_id import VERSIONED_ID
 from arx.domain.paper import Paper
 from arx.settings import Settings
-
-# New-style IDs (2401.01234) and old-style ones (hep-th/9901001).
-VERSIONED_ID = re.compile(
-    r"(?P<arxiv_id>[0-9]{4}\.[0-9]{4,5}|[a-z-]+(\.[A-Z]{2})?/[0-9]{7})"
-    r"v(?P<version>[1-9][0-9]*)"
-)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -26,18 +20,19 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     :param argv: Arguments without the program name; ``None`` reads
         ``sys.argv``.
-    :raises SystemExit: On invalid arguments, a rejected delivery, invalid
-        settings or a failed file or SMTP operation, with the reason.
+    :raises SystemExit: On invalid arguments, an unknown paper or one without
+        HTML rendition, a rejected delivery, invalid settings or a failed file,
+        arXiv or SMTP operation, with the reason.
     """
     args = _parser().parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     try:
-        _send(args)
+        args.run(args)
     except ValidationError as error:
         # One line, and no input values: they may echo configured settings.
         fields = "; ".join(f"{_field(e['loc'])}: {e['msg']}" for e in error.errors())
         sys.exit(f"arx: invalid settings: {fields}")
-    # The delivery rejections are ValueErrors; smtplib errors are OSErrors.
+    # Rejections are ValueErrors; arXiv and smtplib errors are OSErrors.
     except (ValueError, OSError) as error:
         sys.exit(f"arx: {error}")
 
@@ -45,13 +40,20 @@ def main(argv: Sequence[str] | None = None) -> None:
 def _parser() -> argparse.ArgumentParser:
     """Build the argument parser.
 
-    :returns: Parser for the ``send`` command.
+    :returns: Parser for the ``kindle`` and ``send`` commands.
     """
     parser = argparse.ArgumentParser(
         prog="arx", description="Fetch and read arXiv papers."
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    kindle = commands.add_parser(
+        "kindle", help="fetch, convert and e-mail a paper to a Kindle (FR-ING-04)"
+    )
+    kindle.add_argument("paper", help="arXiv ID or abs, pdf or html URL")
+    kindle.add_argument("--to", required=True, help="allowlisted Kindle address")
+    kindle.set_defaults(run=_kindle)
     send = commands.add_parser("send", help="e-mail an EPUB to a Kindle (FR-DLV-02)")
+    send.set_defaults(run=_send)
     send.add_argument("epub", type=Path, help="EPUB file to send")
     send.add_argument("--to", required=True, help="allowlisted Kindle address")
     send.add_argument(
@@ -74,6 +76,18 @@ def _parser() -> argparse.ArgumentParser:
         help="date the first version was published, YYYY-MM-DD",
     )
     return parser
+
+
+def _kindle(args: argparse.Namespace) -> None:
+    """Fetch, convert and mail the paper the ``kindle`` arguments name.
+
+    :param args: Parsed ``kindle`` arguments.
+    :raises ValueError: If settings are invalid, the paper is unknown or has no
+        HTML rendition, or delivery rejects the mail.
+    :raises OSError: If an arXiv request or sending fails.
+    """
+    service = build_kindle_service(Settings())  # type: ignore[call-arg]
+    service.send(args.paper, args.to)
 
 
 def _send(args: argparse.Namespace) -> None:

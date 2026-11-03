@@ -3,9 +3,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
-from arx.bootstrap import build_delivery_service
+from arx.bootstrap import build_arxiv_client, build_delivery_service
 from arx.domain.paper import Paper
 from arx.services.delivery import AttachmentTooLargeError
 from arx.settings import Settings
@@ -69,3 +70,42 @@ def test_delivery_uses_the_configured_size_limit(
         service.send_epub(PAPER, b"PK epub", "reader@kindle.com")
 
     smtp.assert_not_called()
+
+
+@pytest.fixture
+def arxiv_requests(monkeypatch: pytest.MonkeyPatch) -> list[httpx.Request]:
+    requests: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(404)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    return requests
+
+
+@pytest.mark.req("FR-ING-04")
+def test_arxiv_requests_identify_arx_and_the_sender_by_default(
+    arxiv_requests: list[httpx.Request], tmp_path: Path
+) -> None:
+    build_arxiv_client(make_settings(tmp_path)).html(PAPER)
+
+    agent = arxiv_requests[0].headers["User-Agent"]
+    assert agent.startswith("arx/")
+    assert agent.endswith("(mailto:arx.sender@gmail.com)")
+
+
+@pytest.mark.req("FR-ING-04")
+def test_arxiv_user_agent_can_be_configured(
+    arxiv_requests: list[httpx.Request], tmp_path: Path
+) -> None:
+    settings = make_settings(tmp_path, arxiv_user_agent="arx-test (me@example.com)")
+
+    build_arxiv_client(settings).html(PAPER)
+
+    assert arxiv_requests[0].headers["User-Agent"] == "arx-test (me@example.com)"

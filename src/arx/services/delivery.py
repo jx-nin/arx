@@ -74,6 +74,15 @@ class DeliveryService:
         self._allowed_recipients = frozenset(r.lower() for r in allowed_recipients)
         self._max_bytes = max_bytes
 
+    def check_recipient(self, recipient: str) -> None:
+        """Check that a recipient is on the allowlist (FR-DLV-07).
+
+        :param recipient: Kindle address to send to.
+        :raises RecipientNotAllowedError: If the recipient is not allowlisted.
+        """
+        if recipient.lower() not in self._allowed_recipients:
+            raise RecipientNotAllowedError(f"{recipient} is not an allowed recipient")
+
     def send_epub(self, paper: Paper, epub: bytes, recipient: str) -> None:
         """E-mail one paper's EPUB as an attachment (FR-DLV-02).
 
@@ -87,8 +96,7 @@ class DeliveryService:
         :raises AttachmentTooLargeError: If the EPUB exceeds the size limit.
         :raises Exception: Transport errors from the mailer, passed through.
         """
-        if recipient.lower() not in self._allowed_recipients:
-            raise RecipientNotAllowedError(f"{recipient} is not an allowed recipient")
+        self.check_recipient(recipient)
         if len(epub) > self._max_bytes:
             raise AttachmentTooLargeError(len(epub), self._max_bytes)
 

@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "31 October 2026"
-version: "0.7 (Draft)"
+version: "0.8 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.7 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.7 — Draft |
+| Version | 0.8 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 31 October 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.7 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
 | 0.6 | 2026-10-31 | Section 6.5.1 steps 3 and 9: drop LaTeXML front matter repeated on the title page; pandoc builds without its own title page, language `en`; M0 implements step 3 without heading normalisation; Appendix A: FR-CNV-01 test paths and milestones |
 | 0.5 | 2026-10-31 | Sections 9.1 and 14: agents implement core mechanisms too; review is agentic (`mr-reviewer`), with questions and adjustments from the owner |
@@ -893,6 +894,7 @@ Client requirements:
 - Message: plain-text body with paper titles; subject is the title on one line; attachment with RFC 2231-encoded filename `<first-author>-<year>-<short-title>.epub` (ASCII-safe): the first author's last name, the year first published and the first five title words, accents folded to ASCII, lower-case, other characters dropped, joined with hyphens, at most 80 characters. The versioned arXiv ID (`/` replaced by `-`) stands in when the author name has no ASCII letters.
 - Size check of the raw file before sending against `ARX_DELIVERY_MAX_BYTES` *(default 20 MiB, verify)*; a larger file is rejected without connecting, with its size and the limit in the message. The downscale option (FR-DLV-03) follows in M1 with image processing.
 - Outcome tracking: SMTP acceptance is recorded as `sent`; Amazon does not provide delivery confirmation to the application.
+- M0 command: `arx send FILE.epub --to ADDR --id 2401.01234v2 --title T [--author A ...] --published YYYY-MM-DD` mails one EPUB; the flags stand in for the paper metadata until the arXiv client looks it up. Rejections, invalid settings and SMTP errors exit with status 1 and a one-line reason.
 
 ## 6.7 API Specification
 
@@ -1328,10 +1330,10 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
-| FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py` | M0 |
-| FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 (partial: reject), M1 (downscale option) |
+| FR-DLV-02 | 6.6.3 | `tests/services/test_delivery.py`, `tests/adapters/mail/test_smtp_mailer.py`, `tests/test_settings.py`, `tests/test_bootstrap.py`, `tests/cli/test_main.py` | M0 |
+| FR-DLV-03 | 6.6.3 | `tests/services/test_delivery.py`, `tests/test_settings.py`, `tests/test_bootstrap.py` | M0 (partial: reject), M1 (downscale option) |
 | FR-DLV-06 | 6.3.3, 6.6.3 | `tests/jobs/handlers/test_deliver.py` (`integration`) | M1 |
-| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/test_settings.py` | M0 (allowlist), M1 (T9 rate limit) |
+| FR-DLV-07 | 6.6.3, 7.2 T9 | `tests/services/test_delivery.py`, `tests/test_settings.py`, `tests/cli/test_main.py` | M0 (allowlist), M1 (T9 rate limit) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
 | NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_rate_limiter.py` (property) | M1 |
 | … | … | … | … |

@@ -22,7 +22,7 @@ okf_version: "0.2"
 * [ADR-003 pgvector](/decisions/adr-003-pgvector.md) - vector search inside PostgreSQL
 * [ADR-004 fastembed](/decisions/adr-004-fastembed.md) - CPU embeddings with bge-small-en-v1.5
 * [ADR-005 LiteLLM](/decisions/adr-005-litellm.md) - provider-agnostic LLM gateway
-* [ADR-006 Maths to PNG](/decisions/adr-006-math-png.md) - rejected after the device test; maths as MathML via pandoc
+* [ADR-006 Maths to PNG](/decisions/adr-006-math-png.md) - rejected after the device test (Q-3)
 * [ADR-007 HTMX UI](/decisions/adr-007-htmx.md) - server-rendered templates, no SPA
 * [ADR-008 GitOps](/decisions/adr-008-gitops.md) - Argo CD pull deployment in phase 2
 * [ADR-009 Isolated converter](/decisions/adr-009-converter-isolation.md) - sandboxed document tooling behind an internal HTTP API
@@ -34,3 +34,5 @@ okf_version: "0.2"
 * [Mail and settings libraries](/decisions/mail-library.md) - stdlib smtplib until the async worker, pydantic-settings for configuration
 * [Logging with stdlib and structlog](/decisions/logging.md) - stdlib loggers in modules, structlog JSON formatter in the entry point
 * [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md) - in adapters/arxiv/, advisory lock across workers
+* [Maths as MathML](/decisions/maths-mathml.md) - pandoc --mathml, TeX kept as annotation; answers Q-3
+* [Web UI access before owner login](/decisions/ui-access.md) - tailnet-only until owner login in M3; answers Q-7

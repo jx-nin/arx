@@ -1,10 +1,10 @@
 ---
 type: Decision
 title: "ADR-009 Isolated converter"
-description: pandoc, k2pdfopt and epubcheck run in a separate container with no network or DB credentials.
+description: pandoc, k2pdfopt and epubcheck run in a separate container without egress or DB credentials, behind an internal HTTP API.
 tags: [security, conversion, adr]
 status: stable
-generated: { by: "agent:claude-opus-5-5", at: 2026-11-03T00:00:00Z }
+generated: { by: "agent:claude-opus-5-5", at: 2026-11-03T00:00:00Z }  # decided by human:jx-nin
 ---
 
 # Decision

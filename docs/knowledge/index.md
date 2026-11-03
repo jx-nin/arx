@@ -11,6 +11,8 @@ okf_version: "0.2"
 * [EPUB conversion](/components/epub-conversion.md) - arXiv HTML to EPUB 3 via pandoc with a Kindle stylesheet (M0)
 * [Kindle delivery](/components/kindle-delivery.md) - EPUB by e-mail over Gmail SMTP, recipient allowlist and size limit (M0)
 * [arXiv client and send by ID or URL](/components/arxiv-client.md) - `arx kindle`: API lookup, HTML download, convert and mail (M0)
+* [Daily listing of one category](/components/daily-listing.md) - `arx today`: latest announced papers of a category from RSS (M0)
+* [Paper store and migrations](/components/paper-store.md) - Alembic `paper` table, upsert keeping the latest version, `ARX_DATABASE_URL_FILE` (M0)
 
 # Decisions
 
@@ -34,5 +36,6 @@ okf_version: "0.2"
 * [Mail and settings libraries](/decisions/mail-library.md) - stdlib smtplib until the async worker, pydantic-settings for configuration
 * [Logging with stdlib and structlog](/decisions/logging.md) - stdlib loggers in modules, structlog JSON formatter in the entry point
 * [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md) - in adapters/arxiv/, advisory lock across workers
+* [RSS as the M0 daily listing source](/decisions/listing-source-m0.md) - stopgap for Q-2, which stays open for the M1 spike
 * [Keyword search of all of arXiv](/decisions/arxiv-search.md) - `arx search` with an in-Arx marker per result (sent / stored in M1), CLI in M1, Search view in M3
 * [Digest of a queue](/decisions/digest-queue.md) - owner-picked queue sent as one digest EPUB daily or weekly, in M1

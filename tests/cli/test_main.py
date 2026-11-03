@@ -1,3 +1,4 @@
+import re
 import smtplib
 from email.message import EmailMessage
 from pathlib import Path
@@ -185,6 +186,7 @@ def arxiv(smtp: MagicMock, monkeypatch: pytest.MonkeyPatch) -> dict[str, bytes]:
     """Serve arXiv paths from this dict; unknown paths are 404."""
     pages = {
         "/api/query": (FIXTURES / "arxiv" / "api_2401.01234.xml").read_bytes(),
+        "/rss/cs.LG": (FIXTURES / "arxiv" / "rss_cs.LG.xml").read_bytes(),
         "/html/2401.01234v1": (
             FIXTURES / "conversion" / "arxiv_minimal.html"
         ).read_bytes(),
@@ -239,3 +241,93 @@ def test_kindle_with_an_unparsable_reference_exits_with_the_reason(
 ) -> None:
     with pytest.raises(SystemExit, match="not an arXiv ID"):
         main(["kindle", "https://example.com/paper", "--to", RECIPIENT])
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_prints_new_papers_and_marks_cross_lists(
+    arxiv: dict[str, bytes], capsys: pytest.CaptureFixture[str]
+) -> None:
+    main(["today", "cs.LG"])
+
+    assert capsys.readouterr().out.splitlines() == [
+        "2611.00015v1  Output-Aware Block Influence: Jacobian-Lens Weighting for "
+        "Depth Pruning — Kyle Lemoi",
+        "2611.02335v1  Attribution-based diagnostics for single-cell foundation "
+        "models — Farnoush Rezaei Jafari",
+        "2611.00008v1  [cross] Neonatal EEG Seizure Prediction with Quantum Inspired "
+        "Continuous-Variable (Bosonic) Reservoir Computing — Krishna Bhatia",
+    ]
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_without_announcement_says_so(
+    arxiv: dict[str, bytes], capsys: pytest.CaptureFixture[str]
+) -> None:
+    arxiv["/rss/cs.LG"] = (FIXTURES / "arxiv" / "rss_empty.xml").read_bytes()
+
+    main(["today", "cs.LG"])
+
+    [line] = capsys.readouterr().out.splitlines()
+    assert line.startswith("No new papers in cs.LG")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_with_a_malformed_category_exits_with_the_reason(
+    arxiv: dict[str, bytes],
+) -> None:
+    with pytest.raises(SystemExit, match="not an arXiv category"):
+        main(["today", "cs.LG?x=1"])
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_without_a_feed_exits_with_the_reason(
+    arxiv: dict[str, bytes],
+) -> None:
+    with pytest.raises(SystemExit, match="no feed for cs.XX"):
+        main(["today", "cs.XX"])
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_names_a_missing_first_author(
+    arxiv: dict[str, bytes], capsys: pytest.CaptureFixture[str]
+) -> None:
+    feed = (FIXTURES / "arxiv" / "rss_cs.LG.xml").read_text()
+    arxiv["/rss/cs.LG"] = re.sub(r"<dc:creator>.*?</dc:creator>", "", feed).encode()
+
+    main(["today", "cs.LG"])
+
+    assert capsys.readouterr().out.splitlines()[0].endswith("— unknown author")
+
+
+@pytest.mark.req("FR-ING-02")
+def test_today_with_an_unknown_category_exits_with_one_line(
+    smtp: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kwargs: real_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(["today", "cs.XX"])
+
+    message = str(exit_info.value.code)
+    assert "400 Bad Request" in message
+    assert "\n" not in message
+
+
+def test_a_misspelt_setting_in_the_env_file_exits_with_one_line(
+    smtp: MagicMock, epub: Path, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("ARX_SMPT_HOST=secret-value\n")
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(send_args(epub))
+
+    assert exit_info.value.code == "arx: unknown settings in .env: ARX_SMPT_HOST"
+    smtp.assert_not_called()

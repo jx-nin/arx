@@ -2,7 +2,9 @@
 
 ## 2026-11-03
 
-* Spec moves to v0.10. Added [keyword search of all of arXiv](/decisions/arxiv-search.md) (FR-DSC-08) and [digest of a queue](/decisions/digest-queue.md) (FR-DLV-08, FR-DLV-04, digests move from M8 to M1). Updated [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md): the lock also spaces CLI searches. Owner decisions: M1 search shows only *sent* and *stored*; queued papers without HTML are removed at the digest run and reported.
+* Spec moves to v0.12. Added [keyword search of all of arXiv](/decisions/arxiv-search.md) (FR-DSC-08) and [digest of a queue](/decisions/digest-queue.md) (FR-DLV-08, FR-DLV-04, digests move from M8 to M1). Updated [arXiv rate limiter placement](/decisions/arxiv-rate-limiter.md): the lock also spaces CLI searches. Owner decisions: M1 search shows only *sent* and *stored*; queued papers without HTML are removed at the digest run and reported.
+* Spec moves to v0.11. Added [paper store and migrations](/components/paper-store.md): Alembic with the `paper` table, `PaperStore` protocol, `PaperRepository`, `DatabaseSettings` with `ARX_DATABASE_URL_FILE`; `.env` ignores unprefixed keys and rejects unknown `ARX_*` keys.
+* Spec moves to v0.10. Added [daily listing of one category](/components/daily-listing.md): RSS parsing in the arXiv client, `ListingService`, `arx today` CLI command; added [RSS as the M0 daily listing source](/decisions/listing-source-m0.md). Updated [arXiv client](/components/arxiv-client.md): request errors on one line.
 * Spec moves to v0.9. Added [arXiv client and send by ID or URL](/components/arxiv-client.md): reference parser, arXiv API and HTML client, `KindleService`, `arx kindle` CLI command. Updated [Kindle delivery](/components/kindle-delivery.md) with `check_recipient`.
 
 ## 2026-10-31

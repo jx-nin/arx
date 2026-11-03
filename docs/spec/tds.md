@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "3 November 2026"
-version: "0.10 (Draft)"
+version: "0.12 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.10 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.10 — Draft |
+| Version | 0.12 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 3 November 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,7 +20,9 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with at least one sendable queued paper. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`, `ARX_DIGEST_RECIPIENT`), 14 (digests move from M8 to M1), Appendix A. `build_digest` is keyed by its delivery (6.3.4); a failure hook on `dead`/`cancelled` fails the delivery and releases its items (6.3.3); `fetch_paper` can queue after import (own key `fetch_queue:<id>`); `delivery_item` cascades with its conversion, and cache eviction keeps conversion rows (6.2.3, FR-DAT-03); only single-paper deliveries are retried (6.5.3, 6.8). Owner decisions: M1 search shows only *sent* and *stored*, *library* arrives in M3 (FR-DSC-08, 6.6.1, 14, Appendix A incl. FR-ING-04 "stored" in M1); queued papers without an HTML rendition are removed at the digest run and reported (FR-DLV-08, 6.5.3), with the report shown in 6.7 and 6.8. Job retry is refused (409) for digest jobs (6.5.3, 6.7, 6.8); an evicted file is a cache miss regenerated into the same conversion row |
+| 0.12 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with at least one sendable queued paper. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`, `ARX_DIGEST_RECIPIENT`), 14 (digests move from M8 to M1), Appendix A. `build_digest` is keyed by its delivery (6.3.4); a failure hook on `dead`/`cancelled` fails the delivery and releases its items (6.3.3); `fetch_paper` can queue after import (own key `fetch_queue:<id>`); `delivery_item` cascades with its conversion, and cache eviction keeps conversion rows (6.2.3, FR-DAT-03); only single-paper deliveries are retried (6.5.3, 6.8). Owner decisions: M1 search shows only *sent* and *stored*, *library* arrives in M3 (FR-DSC-08, 6.6.1, 14, Appendix A incl. FR-ING-04 "stored" in M1); queued papers without an HTML rendition are removed at the digest run and reported (FR-DLV-08, 6.5.3), with the report shown in 6.7 and 6.8. Job retry is refused (409) for digest jobs (6.5.3, 6.7, 6.8); an evicted file is a cache miss regenerated into the same conversion row |
+| 0.11 | 2026-11-03 | Section 6.2.2: M0 migration creates only `paper`, `primary_category` nullable until the harvest, pgvector extension with the first embedding table; papers stored once per arXiv ID at the latest version, synchronous until the worker (5.5). Section 12: `ARX_DATABASE_URL_FILE` replaces `ARX_DATABASE_URL`. Appendix A: FR-ING-03 (M0 partial), FR-ING-07; section 12: unprefixed `.env` keys ignored, unknown `ARX_*` keys rejected |
+| 0.10 | 2026-11-03 | Section 6.6.1: M0 command `arx today CATEGORY` lists the latest announced new papers and cross-lists of one category from `rss.arxiv.org`, replacements left out; RSS is the M0 stopgap for Q-2, which stays open for the M1 spike. Section 5.5: M0 parses Atom and RSS with lxml. Section 14: M0 lists one category's papers with `arx today`. Appendix A: FR-ING-02 partial in M0 |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -394,11 +396,11 @@ Layering rules:
 | Web framework | FastAPI + Uvicorn | Async I/O, typed contracts, OpenAPI out of the box |
 | UI | Jinja2 templates + HTMX, minimal CSS (Pico.css or hand-written) | No separate SPA build; ideal for a single-user phone-first UI |
 | Database | PostgreSQL 17 + pgvector | One store for relational data, job queue, full-text and vector search |
-| DB access | SQLAlchemy 2.0 (async, Core + ORM) + psycopg 3 (Q-11) | Mature, typed, explicit SQL when needed; one driver serves async app code and sync Alembic/CLI |
+| DB access | SQLAlchemy 2.x (async, Core + ORM) + psycopg 3 (Q-11) | Mature, typed, explicit SQL when needed; one driver serves async app code and sync Alembic/CLI. Repositories are synchronous like the M0 services until the async worker (M1) |
 | Migrations | Alembic | Standard |
 | Job queue | Custom PostgreSQL queue (`FOR UPDATE SKIP LOCKED`) | No additional infrastructure; transactional enqueue; learning value (ADR-002) |
 | HTTP client | httpx (async) + tenacity | Timeouts, retries, HTTP/2 off for arXiv (single connection) |
-| Feed parsing | feedparser (Atom), lxml | arXiv API returns Atom |
+| Feed parsing | feedparser (Atom), lxml | arXiv API returns Atom; M0 parses API Atom and category RSS with lxml, since feedparser ships no type hints |
 | HTML processing | lxml / selectolax; nh3 for sanitisation | Fast, safe |
 | Embeddings | fastembed (ONNX Runtime, CPU) with `BAAI/bge-small-en-v1.5` (384-d) | Small footprint, good quality, no PyTorch dependency (ADR-004) |
 | LLM access | LiteLLM (library mode) | Provider-agnostic; supports hosted APIs and local Ollama; cost tracking (ADR-005) |
@@ -695,6 +697,14 @@ CREATE TABLE llm_usage (
 
 The job queue tables are specified in Section 6.3.
 
+M0 implementation notes:
+
+- The first Alembic migration creates only `paper`; the other tables, and `CREATE EXTENSION vector`, come with the slices that use them.
+- `paper.primary_category` is nullable until the harvest (M1) fills it: `arx kindle` and `arx send` do not know it. The harvest slice backfills it and makes it `NOT NULL`.
+- `authors` holds `{"name": …, "affiliation": null}` until a metadata source with affiliations is added.
+- A paper is stored once per `arxiv_id` (FR-ING-07); storing it again is an upsert that replaces the row only with a newer version, so reruns change nothing (FR-ING-03). A newer version keeps `doi` and `journal_ref`, which the domain `Paper` does not carry yet, and resets `html_status` to `unknown` and `html_checked_at` to null, since HTML availability is per version.
+- SQLAlchemy models in `adapters/db/models.py` mirror the migrations; an integration test fails when they differ.
+
 ### 6.2.3 Data Retention
 
 | Data | Retention |
@@ -903,7 +913,7 @@ Conversion tools (pandoc, Node/MathJax, k2pdfopt, epubcheck) run in a dedicated 
 
 | Use | Interface | Notes |
 |---|---|---|
-| Daily listing | RSS/Atom feeds per category or API query by `submittedDate` *(verify which is more reliable)* | Configurable base URLs |
+| Daily listing | RSS/Atom feeds per category or API query by `submittedDate` *(verify which is more reliable; M0 uses RSS, Q-2)* | Configurable base URLs |
 | Metadata lookup | arXiv API (`/api/query?id_list=`) | Batch up to 100 IDs per request |
 | Keyword search | arXiv API (`/api/query?search_query=&start=&max_results=&sortBy=relevance`) | One request per result page; FR-DSC-08 |
 | HTML availability | `GET`/`HEAD` on HTML rendition URL | 404 → `unavailable` |
@@ -916,6 +926,7 @@ Client requirements:
 - Retries on 429/5xx/network errors with backoff (max 5); respect `Retry-After`.
 - M0 exception: the manual walking-skeleton script makes a handful of sequential requests and waits the configured interval between them instead of using the limiter; the limiter replaces the wait in M1.
 - M0 command (FR-ING-04, FR-DLV-01): `arx kindle REF --to ADDR` accepts an arXiv ID (`2401.01234`, `2401.01234v2`, `arXiv:…`, old-style `hep-th/9901001`) or an `arxiv.org/abs|pdf|html/…` URL; without a version it takes the latest. It checks the recipient first, looks the paper up with `id_list`, downloads `arxiv.org/html/<id>v<n>`, converts (6.5.1) and mails (6.6.3). An unknown paper or a 404 rendition exits with status 1 and the reason; the PDF path (FR-CNV-05) follows later. The API carries no licence, so the title page omits it until a source that has it is added. Requests use a synchronous client that follows redirects until the async worker (M1); endpoints are fixed until `ARX_ARXIV_*_BASE` arrive in M1.
+- M0 command (FR-ING-02, partial: one category, manual, nothing stored): `arx today CATEGORY` checks the category code (archive or `archive.subject`, e.g. `cs.LG`, `hep-th`, `cond-mat.mtrl-sci`) before any request, reads `rss.arxiv.org/rss/<category>` through the same spaced client and prints one line per paper: versioned ID, `[cross]` for cross-lists, title, first author. Items announced as `replace` or `replace-cross` are left out, since they are new versions of older papers. Author affiliations in parentheses are dropped. A feed without items (weekends, holidays) prints a one-line note and exits with status 0; a malformed category, an unknown one (arXiv answers 400) or a failed request exits with status 1 and a one-line reason. RSS is the M0 stopgap for Q-2; the M1 spike still compares it with the API date query.
 - Keyword search (FR-DSC-08, M1 after the `paper` table exists): `arx search TERMS… [--start N] [--limit N]` turns plain terms into `all:` terms joined with `AND` and passes terms with a field prefix (`ti:`, `au:`, `abs:`, `cat:`) through unchanged; `--limit` defaults to 20, at most 50. Each page is one API request through the shared rate limiter, including its advisory lock, so an interactive search never runs closer than the configured interval to a worker request (NFR-16). Results are not stored; the marker comes from one lookup of the page's arXiv IDs (without version) in `paper`, `library_item` (from M3; M1 has no library table) and the conversions of sent deliveries (`conversion.paper_id`, or `digest_part` for digests). Output is one line per result: versioned ID, marker, title, first author, year; the owner sends or queues a result with `arx kindle ID` or `arx queue add ID`, which import it (FR-ING-04). A malformed query (API error entry) exits with status 1 and the reason. The UI Search view (6.8) follows in M3.
 - Response parsing is covered by contract tests on recorded fixtures (see 9.2).
 - Metric `arx_arxiv_requests_total{endpoint,status}` and histogram of inter-request spacing.
@@ -1267,10 +1278,12 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 
 # 12. Configuration Reference
 
+Variables are read from the environment or a local `.env`. Keys in `.env` without the `ARX_` prefix (e.g. Compose's `POSTGRES_*`) are ignored; an `ARX_*` key in `.env` that no implemented setting defines is rejected, so a misspelt name fails at start-up. Variables are implemented with the milestone that first needs them; until then their keys are rejected too (M0 implements the SMTP, delivery, arXiv and database variables).
+
 | Variable | Default | Description |
 |---|---|---|
 | `ARX_ENV` | `dev` | `dev` / `staging` / `prod` |
-| `ARX_DATABASE_URL` | — (secret file) | PostgreSQL DSN |
+| `ARX_DATABASE_URL_FILE` | `/run/secrets/database_url` | Secret: PostgreSQL URL `postgresql://user:password@host:port/db`; the psycopg 3 driver is always used. Needed only by commands that use the database and by Alembic |
 | `ARX_TIMEZONE` | `Europe/Warsaw` | Scheduling timezone |
 | `ARX_ARXIV_MIN_INTERVAL_S` | `3.0` | Minimum spacing between arXiv requests *(verify)* |
 | `ARX_ARXIV_USER_AGENT` | `arx/<ver> (mailto:<ARX_DELIVERY_FROM>)` | Identifying User-Agent |
@@ -1322,7 +1335,7 @@ Cadence assumption: ~3 evenings × 1.5 h + one longer weekend session per week. 
 
 | Milestone | Scope | Exit criteria (Definition of Done) | Est. |
 |---|---|---|---|
-| **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then fetch yesterday's papers for one category; convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
+| **M0 — Walking skeleton** | Repo, uv, ruff, mypy, pytest; Compose with Postgres+pgvector; Alembic; manual script: send one paper by arXiv ID or URL (`arx kindle`), then list the latest announced papers of one category (`arx today`); convert one HTML paper with pandoc; e-mail to Kindle | A real paper, converted by Arx, is readable on the Kindle; CI runs lint + tests | 1 week |
 | **M1 — Core pipeline** | Job queue + scheduler + rate limiter; harvest, probe, convert (HTML path with maths/figures), deliver; epubcheck; delivery history; `arx search` over all of arXiv with *sent* / *stored* markers (FR-DSC-08, once `paper` exists); digest queue and scheduled digest EPUB (FR-DLV-04, FR-DLV-08, FR-CNV-07, after convert and deliver); minimal UI (feed list, send and queue buttons) | Daily harvest runs unattended for 5 consecutive weekdays; 0 rate-limit violations; integration tests for queue semantics; a scheduled digest of queued papers is readable on the Kindle | 3–4 weeks |
 | **M2 — Secure CI/CD** | Full PR pipeline (SAST, SCA, secrets, coverage gate), image build/scan/SBOM/sign, GHCR, automated deploy to homelab staging (Compose) | A PR with a planted secret or critical CVE is blocked; signed images deployed automatically | 1 week |
 | **M3 — Discovery & library** | Embeddings, interests, ranker v1, feedback, explanations, library (statuses, tags, notes, keyword + semantic search), Search view over arXiv and the *library* marker (FR-DSC-08, FR-UI-02), LLM summaries with budget guard, ranking/LLM evals in CI | Daily feed is useful (owner's precision@10 ≥ 0.5 after 2 weeks of feedback); eval jobs gate PRs | 2–3 weeks |
@@ -1356,7 +1369,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | ID | Question | Resolve by | Answer |
 |---|---|---|---|
 | Q-1 | Which Kindle model/resolution is the default profile? | M0 | Paperwhite Signature Edition (11th gen), 1236 × 1648 px, 300 dpi, greyscale (6.5) |
-| Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) | Open |
+| Q-2 | Daily listing source: RSS per category vs. API date query — which is more complete and stable? | M1 (spike) | Open; M0 uses RSS (`arx today`, 6.6.1) as a stopgap |
 | Q-3 | MathML vs. PNG maths: does the target Kindle render MathML from personal documents acceptably? | M1 (device test) | Open; device: Paperwhite 11 Signature, firmware 5.19.2 |
 | Q-4 | Which SMTP provider will be used as the approved sender? | M0 | Dedicated Gmail account, app password, STARTTLS 587 (6.6.3) |
 | Q-5 | AWS or Azure for backups and OIDC (both supported by the design)? | M6 | Open |
@@ -1375,9 +1388,10 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 
 | Requirement | Design section | Test(s) | Milestone |
 |---|---|---|---|
-| FR-ING-02 | 5.3, 6.3.4, 6.6.1 | `tests/jobs/handlers/test_harvest.py::test_daily_harvest_idempotent` (`integration`) | M1 |
-| FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
+| FR-ING-02 | 5.3, 6.3.4, 6.6.1 | `tests/domain/test_announcement.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_listing.py`, `tests/cli/test_main.py` (M0); `tests/jobs/handlers/test_harvest.py::test_daily_harvest_idempotent` (`integration`) | M0 (partial: one category, manual), M1 (all subscribed, scheduled) |
+| FR-ING-03 | 6.2.2, 6.3.4 | `tests/adapters/db/test_paper_repository.py` (`integration`); `…::test_reharvest_no_duplicates` (`integration`) | M0 (partial: idempotent paper upsert), M1 (harvest) |
 | FR-ING-04 | 6.6.1 | `tests/domain/test_arxiv_id.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (ID and URL, HTML path), M1 (stored) |
+| FR-ING-07 | 6.2.2 | `tests/adapters/db/test_paper_repository.py::test_storing_the_same_paper_again_keeps_one_row` (`integration`) | M0 (partial: one row per arXiv ID), M1 (harvest of cross-lists) |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-07 | 6.5.3 | `tests/adapters/conversion/test_epub_builder.py`, golden digest (`golden`) | M1 |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
@@ -1390,7 +1404,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-DLV-08 | 6.2.2, 6.5.3, 6.7 | `tests/services/test_digest_queue.py`, `tests/jobs/handlers/test_digest.py` (`integration`), `tests/jobs/test_queue.py::test_dead_digest_job_fails_delivery_and_releases_items` (`integration`), `tests/cli/test_main.py` | M1 (CLI, feed button), M3 (Search and Library views) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
 | FR-DSC-08 | 6.6.1, 6.7, 6.8 | `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_search.py`, `tests/cli/test_main.py` | M1 (CLI, *sent* / *stored*), M3 (Search view, *library*) |
-| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property); `tests/adapters/arxiv/test_rate_limiter_lock.py` (`integration`: CLI search beside a worker) | M0 (partial: fixed wait), M1 (limiter) |
+| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `…::test_feed_requests_are_spaced_like_the_others`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property); `tests/adapters/arxiv/test_rate_limiter_lock.py` (`integration`: CLI search beside a worker) | M0 (partial: fixed wait), M1 (limiter) |
 | … | … | … | … |
 
 The full matrix is generated by CI from `@pytest.mark.req` markers.

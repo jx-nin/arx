@@ -36,6 +36,9 @@ dev = [
     "types-lxml>=2026.2.16",
 ]
 
+[tool.alembic]
+script_location = "%(here)s/migrations"
+
 [tool.ruff]
 line-length = 88
 target-version = "py314"
@@ -53,7 +56,7 @@ convention = "pep257"
 [tool.mypy]
 strict = true
 python_version = "3.14"
-files = ["src", "tests"]
+files = ["src", "tests", "migrations"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

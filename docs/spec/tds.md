@@ -2,7 +2,7 @@
 title: "Arx — arXiv Discovery & Kindle Delivery Service"
 subtitle: "Technical Design Specification"
 date: "3 November 2026"
-version: "0.10 (Draft)"
+version: "0.11 (Draft)"
 ---
 
 # Document Control
@@ -11,7 +11,7 @@ version: "0.10 (Draft)"
 |---|---|
 | Document | Technical Design Specification (TDS) |
 | System | Arx |
-| Version | 0.10 — Draft |
+| Version | 0.11 — Draft |
 | Status | Proposed, ready for implementation of Milestone M0–M1 |
 | Date | 3 November 2026 |
 | Audience | Implementer(s), reviewers, AI coding agents executing scoped changes |
@@ -20,6 +20,7 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
+| 0.11 | 2026-11-03 | Section 6.2.2: M0 migration creates only `paper`, `primary_category` nullable until the harvest, pgvector extension with the first embedding table; papers stored once per arXiv ID at the latest version, synchronous until the worker (5.5). Section 12: `ARX_DATABASE_URL_FILE` replaces `ARX_DATABASE_URL`. Appendix A: FR-ING-03 (M0 partial), FR-ING-07; section 12: unprefixed `.env` keys ignored, unknown `ARX_*` keys rejected |
 | 0.10 | 2026-11-03 | Section 6.6.1: M0 command `arx today CATEGORY` lists the latest announced new papers and cross-lists of one category from `rss.arxiv.org`, replacements left out; RSS is the M0 stopgap for Q-2, which stays open for the M1 spike. Section 5.5: M0 parses Atom and RSS with lxml. Section 14: M0 lists one category's papers with `arx today`. Appendix A: FR-ING-02 partial in M0 |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
@@ -391,7 +392,7 @@ Layering rules:
 | Web framework | FastAPI + Uvicorn | Async I/O, typed contracts, OpenAPI out of the box |
 | UI | Jinja2 templates + HTMX, minimal CSS (Pico.css or hand-written) | No separate SPA build; ideal for a single-user phone-first UI |
 | Database | PostgreSQL 17 + pgvector | One store for relational data, job queue, full-text and vector search |
-| DB access | SQLAlchemy 2.0 (async, Core + ORM) + psycopg 3 (Q-11) | Mature, typed, explicit SQL when needed; one driver serves async app code and sync Alembic/CLI |
+| DB access | SQLAlchemy 2.x (async, Core + ORM) + psycopg 3 (Q-11) | Mature, typed, explicit SQL when needed; one driver serves async app code and sync Alembic/CLI. Repositories are synchronous like the M0 services until the async worker (M1) |
 | Migrations | Alembic | Standard |
 | Job queue | Custom PostgreSQL queue (`FOR UPDATE SKIP LOCKED`) | No additional infrastructure; transactional enqueue; learning value (ADR-002) |
 | HTTP client | httpx (async) + tenacity | Timeouts, retries, HTTP/2 off for arXiv (single connection) |
@@ -677,6 +678,14 @@ CREATE TABLE llm_usage (
 ```
 
 The job queue tables are specified in Section 6.3.
+
+M0 implementation notes:
+
+- The first Alembic migration creates only `paper`; the other tables, and `CREATE EXTENSION vector`, come with the slices that use them.
+- `paper.primary_category` is nullable until the harvest (M1) fills it: `arx kindle` and `arx send` do not know it. The harvest slice backfills it and makes it `NOT NULL`.
+- `authors` holds `{"name": …, "affiliation": null}` until a metadata source with affiliations is added.
+- A paper is stored once per `arxiv_id` (FR-ING-07); storing it again is an upsert that replaces the row only with a newer version, so reruns change nothing (FR-ING-03). A newer version keeps `doi` and `journal_ref`, which the domain `Paper` does not carry yet, and resets `html_status` to `unknown` and `html_checked_at` to null, since HTML availability is per version.
+- SQLAlchemy models in `adapters/db/models.py` mirror the migrations; an integration test fails when they differ.
 
 ### 6.2.3 Data Retention
 
@@ -1224,10 +1233,12 @@ Playbook `infra/ansible/site.yml`: OS hardening (unattended upgrades, SSH key-on
 
 # 12. Configuration Reference
 
+Variables are read from the environment or a local `.env`. Keys in `.env` without the `ARX_` prefix (e.g. Compose's `POSTGRES_*`) are ignored; an `ARX_*` key in `.env` that no implemented setting defines is rejected, so a misspelt name fails at start-up. Variables are implemented with the milestone that first needs them; until then their keys are rejected too (M0 implements the SMTP, delivery, arXiv and database variables).
+
 | Variable | Default | Description |
 |---|---|---|
 | `ARX_ENV` | `dev` | `dev` / `staging` / `prod` |
-| `ARX_DATABASE_URL` | — (secret file) | PostgreSQL DSN |
+| `ARX_DATABASE_URL_FILE` | `/run/secrets/database_url` | Secret: PostgreSQL URL `postgresql://user:password@host:port/db`; the psycopg 3 driver is always used. Needed only by commands that use the database and by Alembic |
 | `ARX_TIMEZONE` | `Europe/Warsaw` | Scheduling timezone |
 | `ARX_ARXIV_MIN_INTERVAL_S` | `3.0` | Minimum spacing between arXiv requests *(verify)* |
 | `ARX_ARXIV_USER_AGENT` | `arx/<ver> (mailto:<ARX_DELIVERY_FROM>)` | Identifying User-Agent |
@@ -1331,8 +1342,9 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | Requirement | Design section | Test(s) | Milestone |
 |---|---|---|---|
 | FR-ING-02 | 5.3, 6.3.4, 6.6.1 | `tests/domain/test_announcement.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_listing.py`, `tests/cli/test_main.py` (M0); `tests/jobs/handlers/test_harvest.py::test_daily_harvest_idempotent` (`integration`) | M0 (partial: one category, manual), M1 (all subscribed, scheduled) |
-| FR-ING-03 | 6.3.4 | `…::test_reharvest_no_duplicates` (`integration`) | M1 |
+| FR-ING-03 | 6.2.2, 6.3.4 | `tests/adapters/db/test_paper_repository.py` (`integration`); `…::test_reharvest_no_duplicates` (`integration`) | M0 (partial: idempotent paper upsert), M1 (harvest) |
 | FR-ING-04 | 6.6.1 | `tests/domain/test_arxiv_id.py`, `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (ID and URL, HTML path), M1 (stored in the library) |
+| FR-ING-07 | 6.2.2 | `tests/adapters/db/test_paper_repository.py::test_storing_the_same_paper_again_keeps_one_row` (`integration`) | M0 (partial: one row per arXiv ID), M1 (harvest of cross-lists) |
 | FR-CNV-01 | 6.5.1 | `tests/services/test_conversion.py`, `tests/adapters/conversion/test_html_cleaner.py`, `tests/adapters/conversion/test_epub_builder.py`; golden set (`golden`) in M1 | M0 (partial: text, TOC, title page), M1 (full) |
 | FR-CNV-08 | 6.5.1 step 10 | `tests/adapters/conversion/test_epubcheck.py` | M1 |
 | FR-DLV-01 | 6.6.1 | `tests/services/test_kindle.py`, `tests/cli/test_main.py` | M0 (CLI), M1 (UI) |

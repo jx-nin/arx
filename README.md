@@ -14,7 +14,19 @@ uv run pre-commit install
 docker compose up -d   # local Postgres with pgvector
 ```
 
-Settings are read from `ARX_*` environment variables or a local `.env` file (not committed); see spec section 12. Secrets never go in `.env`: the SMTP app password lives in the file named by `ARX_SMTP_PASSWORD_FILE`.
+Settings are read from `ARX_*` environment variables or a local `.env` file (not committed); see spec section 12. Secrets never go in `.env`: the SMTP app password lives in the file named by `ARX_SMTP_PASSWORD_FILE`, the database URL in the file named by `ARX_DATABASE_URL_FILE`.
+
+## Database migrations
+
+```bash
+docker compose up -d
+mkdir -p ~/.config/arx
+printf 'postgresql://arxiv:arxiv@127.0.0.1:5432/arxiv\n' > ~/.config/arx/database_url
+export ARX_DATABASE_URL_FILE=~/.config/arx/database_url   # or set it in .env
+uv run alembic upgrade head
+```
+
+Migrations live in `migrations/`; `arx send` and `arx kindle` do not use the database yet.
 
 ## Send a paper to the Kindle
 
@@ -45,6 +57,6 @@ uv run arx send paper.epub --to you@kindle.com --id 2401.01234v2 \
 
 ```bash
 uv run pre-commit run --all-files   # ruff format, ruff check, mypy --strict
-uv run pytest
+uv run pytest                       # integration tests need Docker (testcontainers; WSL: enable Docker Desktop's WSL integration)
 uv run sphinx-build docs docs/_build
 ```

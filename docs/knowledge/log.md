@@ -2,6 +2,7 @@
 
 ## 2026-11-03
 
+* Spec moves to v0.11. Added [paper store and migrations](/components/paper-store.md): Alembic with the `paper` table, `PaperStore` protocol, `PaperRepository`, `DatabaseSettings` with `ARX_DATABASE_URL_FILE`; `.env` ignores unprefixed keys and rejects unknown `ARX_*` keys.
 * Spec moves to v0.10. Added [daily listing of one category](/components/daily-listing.md): RSS parsing in the arXiv client, `ListingService`, `arx today` CLI command; added [RSS as the M0 daily listing source](/decisions/listing-source-m0.md). Updated [arXiv client](/components/arxiv-client.md): request errors on one line.
 * Spec moves to v0.9. Added [arXiv client and send by ID or URL](/components/arxiv-client.md): reference parser, arXiv API and HTML client, `KindleService`, `arx kindle` CLI command. Updated [Kindle delivery](/components/kindle-delivery.md) with `check_recipient`.
 

@@ -319,3 +319,15 @@ def test_today_with_an_unknown_category_exits_with_one_line(
     message = str(exit_info.value.code)
     assert "400 Bad Request" in message
     assert "\n" not in message
+
+
+def test_a_misspelt_setting_in_the_env_file_exits_with_one_line(
+    smtp: MagicMock, epub: Path, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("ARX_SMPT_HOST=secret-value\n")
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(send_args(epub))
+
+    assert exit_info.value.code == "arx: unknown settings in .env: ARX_SMPT_HOST"
+    smtp.assert_not_called()

@@ -31,7 +31,7 @@
 - Install hooks once: `uv run pre-commit install`.
 - All checks: `uv run pre-commit run --all-files` (ruff format, ruff check, mypy --strict).
 - CI (`.github/workflows/ci.yml`) runs the same checks plus tests and docs.
-- Tests: `uv run pytest`. Docs: `uv run sphinx-build docs docs/_build`.
+- Tests: `uv run pytest`; `integration` tests need Docker (testcontainers; on WSL enable Docker Desktop's WSL integration). Docs: `uv run sphinx-build docs docs/_build`.
 
 ## Knowledge graph (OKF v0.2)
 - Bundle lives in `docs/knowledge/`; spec: https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md

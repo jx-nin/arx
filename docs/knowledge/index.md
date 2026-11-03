@@ -12,6 +12,7 @@ okf_version: "0.2"
 * [Kindle delivery](/components/kindle-delivery.md) - EPUB by e-mail over Gmail SMTP, recipient allowlist and size limit (M0)
 * [arXiv client and send by ID or URL](/components/arxiv-client.md) - `arx kindle`: API lookup, HTML download, convert and mail (M0)
 * [Daily listing of one category](/components/daily-listing.md) - `arx today`: latest announced papers of a category from RSS (M0)
+* [Paper store and migrations](/components/paper-store.md) - Alembic `paper` table, upsert keeping the latest version, `ARX_DATABASE_URL_FILE` (M0)
 
 # Decisions
 

@@ -3,6 +3,7 @@
 from importlib.metadata import version
 
 import httpx
+from sqlalchemy import Engine, create_engine, make_url
 
 from arx.adapters.arxiv.client import ArxivClient
 from arx.adapters.conversion.epub_builder import PandocEpubBuilder
@@ -12,7 +13,7 @@ from arx.services.conversion import ConversionService
 from arx.services.delivery import DeliveryService
 from arx.services.kindle import KindleService
 from arx.services.listing import ListingService
-from arx.settings import Settings
+from arx.settings import DatabaseSettings, Settings
 
 ARXIV_TIMEOUT_SECONDS = 30.0
 
@@ -74,3 +75,16 @@ def build_listing_service(settings: Settings) -> ListingService:
     :returns: A service that lists a category's latest announced papers.
     """
     return ListingService(build_arxiv_client(settings))
+
+
+def build_engine(settings: DatabaseSettings) -> Engine:
+    """Build the SQLAlchemy engine for PostgreSQL over psycopg 3 (Q-11).
+
+    :param settings: Database configuration.
+    :returns: An engine that connects lazily, on first use.
+    :raises OSError: If the URL file cannot be read.
+    :raises sqlalchemy.exc.ArgumentError: If the file does not hold a valid URL.
+    """
+    url = make_url(settings.database_url_file.read_text().strip())
+    # A plain postgresql:// URL would select psycopg2, which is not installed.
+    return create_engine(url.set(drivername="postgresql+psycopg"))

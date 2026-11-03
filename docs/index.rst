@@ -40,6 +40,16 @@ arx
 .. automodule:: arx.adapters.arxiv.client
    :members:
 
+.. automodule:: arx.services.papers
+   :members:
+
+.. automodule:: arx.adapters.db.models
+   :members:
+   :exclude-members: metadata, registry
+
+.. automodule:: arx.adapters.db.paper_repository
+   :members:
+
 .. automodule:: arx.bootstrap
    :members:
 

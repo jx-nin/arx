@@ -20,7 +20,7 @@ version: "0.10 (Draft)"
 
 | Version | Date | Change |
 |---|---|---|
-| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 6.6.1 (search request, rate limit, `arx search`), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with a non-empty queue. Sections 1.6, 5.3, 6.2 (`digest_queue_item`, `digest_part`), 6.3.4 (`digest` job), 6.5.3, 6.7, 6.8, 12 (`ARX_DIGEST_CRON`), 14 (digests move from M8 to M1), Appendix A |
+| 0.10 | 2026-11-03 | New FR-DSC-08 (P0): keyword search of all of arXiv via the API `search_query`, each result marked as stored, in the library or sent; FR-ING-08 (saved searches, P2) builds on it. Sections 3.1, 6.6.1 (search endpoint row, `arx search`, advisory lock held for the interval so CLI and workers stay spaced), 6.7 (`GET /api/v1/search`), 6.8 (Search view), 14 (CLI in M1, Search view in M3), Appendix A. Digest of a queue: new FR-DLV-08 (P0) digest queue; FR-DLV-04 sends the queued papers daily or weekly, no longer the top-ranked ones, split above the attachment limit; FR-DLV-04 and FR-CNV-07 raised to P0; NFR-08 counts runs with a non-empty queue. Sections 1.6, 3.1, 5.3, 6.2 (`digest_queue_item` with the claiming delivery, `digest_part`; retention keeps queued and sent papers), 6.3.4 (`digest` job), 6.5.3 (claim, split, release), 6.7 (queue endpoints; ad-hoc digest cites FR-DLV-01, FR-CNV-07), 6.8, 12 (`ARX_DIGEST_CRON`), 14 (digests move from M8 to M1), Appendix A |
 | 0.9 | 2026-11-03 | Section 6.6.1: M0 command `arx kindle` fetches a paper by ID or URL, converts and mails it; metadata from the API, licence not available there; `ARX_ARXIV_USER_AGENT` defaults to Arx with the sender as contact (12). Section 14: M0 sends a paper by ID or URL before the category harvest. Appendix A: FR-ING-04, FR-DLV-01; FR-DLV-07 and NFR-16 test paths |
 | 0.8 | 2026-10-31 | Section 6.6.3: M0 command `arx send` mails an EPUB with paper metadata from flags; Appendix A: FR-DLV-02, FR-DLV-03 and FR-DLV-07 test paths |
 | 0.7 | 2026-10-31 | Sections 5.5 and 6.6.3: mail via stdlib `smtplib` until the async worker; attachment filename rule; recipients checked case-insensitively and must be `@kindle.com`; oversized files rejected, downscale option in M1; `ARX_DELIVERY_ALLOWED_RECIPIENTS` named with its prefix. Section 12: SMTP host and port default to Gmail. Appendix A: FR-DLV-02, FR-DLV-03, FR-DLV-07 |
@@ -246,7 +246,7 @@ A single technically proficient owner who reads on a Kindle, browses on a phone,
 | FR-DLV-01 | The owner MUST be able to send a single paper to the Kindle with one action. | P0 |
 | FR-DLV-02 | Delivery MUST use e-mail to the configured `@kindle.com` address from an approved sender, with the converted file as attachment. | P0 |
 | FR-DLV-03 | Files exceeding the configured attachment size limit *(verify; default 20 MiB of raw file, leaving headroom under the sending provider's 25 MB limit, see 6.6.3)* MUST be rejected before sending, with a clear message and a downscale option. | P0 |
-| FR-DLV-04 | The owner MUST be able to schedule the digest daily or weekly (`ARX_DIGEST_CRON`, 12). Each run sends the papers in the digest queue (FR-DLV-08) as one digest EPUB (FR-CNV-07); an empty queue sends nothing. Papers are never added to the digest automatically. | P0 |
+| FR-DLV-04 | The owner MUST be able to schedule the digest daily or weekly (`ARX_DIGEST_CRON`, 12). Each run sends the papers in the digest queue (FR-DLV-08) as one digest EPUB (FR-CNV-07), split into several when they exceed the attachment limit (6.5.3); an empty queue sends nothing. Papers are never added to the digest automatically. | P0 |
 | FR-DLV-05 | The system MUST keep a delivery history (paper(s), file hash, size, timestamp, outcome, error). | P0 |
 | FR-DLV-06 | Transient delivery failures MUST be retried with exponential backoff; permanent failures MUST be surfaced in the UI. | P0 |
 | FR-DLV-07 | Recipient addresses MUST be restricted to an allowlist stored in configuration. | P0 |
@@ -498,8 +498,8 @@ library_item *---* tag            (library_item_tag)
 library_item *---* collection     (collection_item)
 paper 1---* conversion *---1 kindle_profile
 conversion *---* paper            (digest_part, digests only)
-paper 1---0..1 digest_queue_item
 delivery *---* conversion         (delivery_item)
+paper 1---0..1 digest_queue_item *---0..1 delivery
 interest (seed statements, with embedding)
 job, schedule, llm_usage, setting
 ```
@@ -662,11 +662,6 @@ CREATE TABLE digest_part (               -- papers bundled in a digest conversio
     position      SMALLINT NOT NULL,
     PRIMARY KEY (conversion_id, paper_id));
 
-CREATE TABLE digest_queue_item (
-    paper_id    BIGINT PRIMARY KEY REFERENCES paper(id) ON DELETE CASCADE,
-    added_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
 CREATE TABLE delivery (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     recipient   TEXT NOT NULL,
@@ -680,6 +675,12 @@ CREATE TABLE delivery_item (
     delivery_id   BIGINT REFERENCES delivery(id) ON DELETE CASCADE,
     conversion_id BIGINT REFERENCES conversion(id),
     PRIMARY KEY (delivery_id, conversion_id));
+
+CREATE TABLE digest_queue_item (
+    paper_id    BIGINT PRIMARY KEY REFERENCES paper(id) ON DELETE CASCADE,
+    added_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    delivery_id BIGINT REFERENCES delivery(id) ON DELETE SET NULL  -- digest in flight
+);
 
 CREATE TABLE llm_usage (
     id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -702,6 +703,7 @@ The job queue tables are specified in Section 6.3.
 | Papers in a feed but not saved | 365 days |
 | Library items, notes, tags | Indefinite |
 | Papers in the digest queue | Kept while queued, whatever the rows above say |
+| Papers carried by a sent delivery | Indefinite (keeps the *sent* marker of FR-DSC-08 and the delivery history of FR-DLV-05) |
 | Conversion files (cache) | LRU eviction above configurable disk quota (default 10 GB) |
 | Jobs (succeeded) | 14 days; failed jobs 90 days |
 | Logs | 14 days on host |
@@ -797,8 +799,8 @@ RETURNING job.*;
 | `rank` | default | `{date}` | `rank:<date>` | Builds feed |
 | `summarize` | llm | `{paper_id, prompt_version}` | `sum:<id>:<pv>` | Budget-checked |
 | `convert` | convert | `{paper_id, version, profile_id, kind}` | cache key | See 6.5 |
-| `digest` | default | `{fire_time}` | `scheduled_digest:<fire_time>` (schedule name) | Scheduled (FR-DLV-04); snapshots the digest queue, see 6.5.3 |
-| `build_digest` | convert | `{paper_ids[], profile_id}` | `digest:<hash>` | Records `digest_part` rows |
+| `digest` | default | `{fire_time}` | `scheduled_digest:<fire_time>` (`<name>:<fire_time>`, 6.3.3) | Fired by the `scheduled_digest` schedule row, seeded from `ARX_DIGEST_CRON` (FR-DLV-04); claims the digest queue, see 6.5.3 |
+| `build_digest` | convert | `{paper_ids[], profile_id}` | `digest:<hash>` | Writes conversion, `digest_part` and `delivery_item` rows; splits oversized digests (6.5.3) |
 | `deliver` | default | `{delivery_id}` | `deliver:<id>` | SMTP |
 | `backup` | default | `{}` | `backup:<date>` | pg_dump → encrypt → upload |
 | `maintenance` | default | `{}` | `maint:<date>` | Retention, cache eviction, VACUUM hints |
@@ -875,9 +877,10 @@ Concatenate cleaned HTML of N papers (each as a top-level part with its own titl
 
 Digest queue (FR-DLV-04, FR-DLV-08, M1):
 
-- The `digest` job reads the queued papers in `added_at` order. An empty queue ends the job without a delivery. Otherwise it creates the `delivery` row and enqueues `build_digest` with the dependent `deliver` in one transaction; papers queued later wait for the next run.
-- When the delivery reaches `sent`, its papers (from `digest_part`) leave the queue in the same transaction; after a permanent failure they stay queued for the next run.
-- Until the PDF path (FR-CNV-05), a queued paper without an HTML rendition is left out of the digest and stays queued; the message body names it.
+- The `digest` job takes the queued papers that are not claimed by a delivery (`digest_queue_item.delivery_id IS NULL`) and whose `html_status` is not `unavailable`, in `added_at` order. If none remain, the job ends without a delivery. Otherwise, in one transaction, it creates the `delivery` row, sets `delivery_id` on the taken items, enqueues `build_digest` with the dependent `deliver`, and marks itself succeeded, so a retry cannot create a second delivery (NFR-07). Papers queued later, and papers claimed by a digest still in flight, wait for the next run.
+- `build_digest` creates the digest conversion(s), `digest_part` rows and `delivery_item` rows in one transaction. A paper whose rendition turns out to be missing (`unknown` → 404) is marked `unavailable`, left out and released (`delivery_id` set back to NULL). When the papers exceed `ARX_DELIVERY_MAX_BYTES`, the digest is split, in queue order, into several EPUBs. Each EPUB gets its own `delivery` and `deliver` job, and its items point at that delivery. When no paper remains, the delivery is marked `failed` with that reason.
+- When a delivery reaches `sent`, its queue items are deleted in the same transaction. After a permanent failure they are released, so they stay queued for the next run.
+- Until the PDF path (FR-CNV-05), a paper without an HTML rendition stays queued and is skipped. The message body of each digest names those papers.
 - M1 commands: `arx queue add REF` (imports an unknown paper first, FR-ING-04), `arx queue list`, `arx queue remove REF`; the feed card gets a *Queue* button.
 
 ### 6.5.4 Isolation
@@ -899,11 +902,11 @@ Conversion tools (pandoc, Node/MathJax, k2pdfopt, epubcheck) run in a dedicated 
 Client requirements:
 
 - One shared async client per worker, `max_connections = 1`, explicit `User-Agent` identifying the application and a contact e-mail.
-- **Rate limiter:** a token bucket with capacity 1 and refill interval 3 s *(configurable)*, implemented in-process and additionally guarded by a PostgreSQL advisory lock so that a second worker instance cannot violate the limit.
+- **Rate limiter:** a token bucket with capacity 1 and refill interval 3 s *(configurable)*, implemented in-process and additionally guarded by a PostgreSQL advisory lock so that a second worker instance or a CLI process (`arx search`) cannot violate the limit: the holder sends one request and keeps the lock until the interval after it has passed.
 - Retries on 429/5xx/network errors with backoff (max 5); respect `Retry-After`.
 - M0 exception: the manual walking-skeleton script makes a handful of sequential requests and waits the configured interval between them instead of using the limiter; the limiter replaces the wait in M1.
 - M0 command (FR-ING-04, FR-DLV-01): `arx kindle REF --to ADDR` accepts an arXiv ID (`2401.01234`, `2401.01234v2`, `arXiv:…`, old-style `hep-th/9901001`) or an `arxiv.org/abs|pdf|html/…` URL; without a version it takes the latest. It checks the recipient first, looks the paper up with `id_list`, downloads `arxiv.org/html/<id>v<n>`, converts (6.5.1) and mails (6.6.3). An unknown paper or a 404 rendition exits with status 1 and the reason; the PDF path (FR-CNV-05) follows later. The API carries no licence, so the title page omits it until a source that has it is added. Requests use a synchronous client that follows redirects until the async worker (M1); endpoints are fixed until `ARX_ARXIV_*_BASE` arrive in M1.
-- Keyword search (FR-DSC-08, M1 after the `paper` table exists): `arx search TERMS… [--start N] [--limit N]` turns plain terms into `all:` terms joined with `AND` and passes terms with a field prefix (`ti:`, `au:`, `abs:`, `cat:`) through unchanged; `--limit` defaults to 20, at most 50. Each page is one API request through the shared rate limiter, including its advisory lock, so an interactive search never runs closer than the configured interval to a worker request (NFR-16). Results are not stored; the marker comes from one lookup of the page's arXiv IDs (without version) in `paper`, `library_item` and the conversions of sent deliveries (`conversion.paper_id`, or `digest_part` for digests). Output is one line per result: versioned ID, marker, title, first author, year. A malformed query (API error entry) exits with status 1 and the reason. The UI Search view (6.8) follows in M3.
+- Keyword search (FR-DSC-08, M1 after the `paper` table exists): `arx search TERMS… [--start N] [--limit N]` turns plain terms into `all:` terms joined with `AND` and passes terms with a field prefix (`ti:`, `au:`, `abs:`, `cat:`) through unchanged; `--limit` defaults to 20, at most 50. Each page is one API request through the shared rate limiter, including its advisory lock, so an interactive search never runs closer than the configured interval to a worker request (NFR-16). Results are not stored; the marker comes from one lookup of the page's arXiv IDs (without version) in `paper`, `library_item` and the conversions of sent deliveries (`conversion.paper_id`, or `digest_part` for digests). Output is one line per result: versioned ID, marker, title, first author, year; the owner sends or queues a result with `arx kindle ID` or `arx queue add ID`, which import it (FR-ING-04). A malformed query (API error entry) exits with status 1 and the reason. The UI Search view (6.8) follows in M3.
 - Response parsing is covered by contract tests on recorded fixtures (see 9.2).
 - Metric `arx_arxiv_requests_total{endpoint,status}` and histogram of inter-request spacing.
 
@@ -947,9 +950,9 @@ All JSON endpoints are under `/api/v1`, documented via generated OpenAPI. HTML (
 | GET | `/api/v1/library/export?format=bibtex\|json` | Export | FR-LIB-06 |
 | POST | `/api/v1/conversions` | Body: `{paper_id, profile_id?}` → 202 | FR-CNV-* |
 | GET | `/api/v1/conversions/{id}/file` | Download output | FR-CNV-10 |
-| POST | `/api/v1/deliveries` | Body: `{paper_ids[], profile_id?, digest: bool}` → 202 | FR-DLV-01/04 |
+| POST | `/api/v1/deliveries` | Body: `{paper_ids[], profile_id?, digest: bool}` → 202; `digest` sends the papers now as one digest, outside the queue | FR-DLV-01, FR-CNV-07 |
 | GET | `/api/v1/deliveries?status=` | History | FR-DLV-05 |
-| GET/POST | `/api/v1/digest/queue` | List the digest queue; body `{reference}` (ID or URL) queues a paper, importing it first if unknown (202 + job id) | FR-DLV-08 |
+| GET/POST | `/api/v1/digest/queue` | List the digest queue; body `{reference}` (ID or URL) queues a paper, importing it first if unknown (202 + job id); a known paper → 201, one already queued → 200 (idempotent) | FR-DLV-08 |
 | DELETE | `/api/v1/digest/queue/{paper_id}` | Remove from the digest queue | FR-DLV-08 |
 | GET/PUT | `/api/v1/settings/{section}` | Subscriptions, interests, schedules, profiles, delivery, llm | FR-ADM-01 |
 | GET | `/api/v1/jobs?status=&kind=` | Job monitor | FR-ADM-02 |
@@ -1376,7 +1379,7 @@ Implementation guidance for AI-assisted development: agents implement scoped cha
 | FR-DLV-08 | 6.2.2, 6.5.3, 6.7 | `tests/services/test_digest_queue.py`, `tests/jobs/handlers/test_digest.py` (`integration`), `tests/cli/test_main.py` | M1 (CLI, feed button), M3 (Search and Library views) |
 | FR-DSC-02 | 6.4 | `tests/domain/test_ranking.py`, `tests/evals/ranking` | M3 |
 | FR-DSC-08 | 6.6.1, 6.7, 6.8 | `tests/adapters/arxiv/test_client.py` (`contract`), `tests/services/test_search.py`, `tests/cli/test_main.py` | M1 (CLI), M3 (Search view) |
-| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property, incl. CLI search beside a worker) | M0 (partial: fixed wait), M1 (limiter) |
+| NFR-16 | 6.6.1 | `tests/adapters/arxiv/test_client.py::test_requests_are_spaced_by_the_minimum_interval`, `tests/test_settings.py` (M0 wait); `tests/adapters/arxiv/test_rate_limiter.py` (property); `tests/adapters/arxiv/test_rate_limiter_lock.py` (`integration`: CLI search beside a worker) | M0 (partial: fixed wait), M1 (limiter) |
 | … | … | … | … |
 
 The full matrix is generated by CI from `@pytest.mark.req` markers.

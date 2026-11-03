@@ -36,6 +36,14 @@ uv run arx kindle https://arxiv.org/abs/2401.01234 --to you@kindle.com
 
 Takes an arXiv ID (`2401.01234`, `2401.01234v2`) or an `arxiv.org/abs|pdf|html` URL, fetches the HTML version, converts it to EPUB and mails it. Papers without an HTML version are not supported yet.
 
+## List today's papers of a category
+
+```bash
+uv run arx today cs.LG
+```
+
+Prints the latest announced new papers and cross-lists (`[cross]`) of one arXiv category, one line each: versioned ID, title, first author. Replacements of older papers are left out. Pass an ID from the list to `arx kindle`. On weekends and holidays arXiv announces nothing and the command says so. It reads the same settings as `arx kindle`, since the `User-Agent` names the sender address as contact.
+
 ## Send an EPUB to the Kindle
 
 ```bash

@@ -12,6 +12,7 @@ from arx.adapters.mail.smtp_mailer import SmtpMailer
 from arx.services.conversion import ConversionService
 from arx.services.delivery import DeliveryService
 from arx.services.kindle import KindleService
+from arx.services.listing import ListingService
 from arx.settings import DatabaseSettings, Settings
 
 ARXIV_TIMEOUT_SECONDS = 30.0
@@ -65,6 +66,15 @@ def build_kindle_service(settings: Settings) -> KindleService:
     return KindleService(
         build_arxiv_client(settings), conversion, build_delivery_service(settings)
     )
+
+
+def build_listing_service(settings: Settings) -> ListingService:
+    """Build the daily listing service on the arXiv client.
+
+    :param settings: Loaded configuration.
+    :returns: A service that lists a category's latest announced papers.
+    """
+    return ListingService(build_arxiv_client(settings))
 
 
 def build_engine(settings: DatabaseSettings) -> Engine:

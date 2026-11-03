@@ -177,3 +177,20 @@ def test_misspelt_arx_keys_in_the_env_file_are_rejected(
 
     with pytest.raises(ValueError, match="ARX_SMPT_HOST"):
         settings_class(_env_file=env_file)  # type: ignore[call-arg]
+
+
+def test_rejection_names_lower_case_keys_without_their_values(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    for name in REQUIRED:
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text(
+        "".join(f"{name}={value}\n" for name, value in REQUIRED.items())
+        + "arx_smpt_host=secret-value\n"
+    )
+
+    with pytest.raises(ValueError, match="ARX_SMPT_HOST") as excinfo:
+        Settings(_env_file=env_file)  # type: ignore[call-arg]
+
+    assert "secret-value" not in str(excinfo.value)

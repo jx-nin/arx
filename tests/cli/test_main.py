@@ -239,3 +239,15 @@ def test_kindle_with_an_unparsable_reference_exits_with_the_reason(
 ) -> None:
     with pytest.raises(SystemExit, match="not an arXiv ID"):
         main(["kindle", "https://example.com/paper", "--to", RECIPIENT])
+
+
+def test_a_misspelt_setting_in_the_env_file_exits_with_one_line(
+    smtp: MagicMock, epub: Path, tmp_path: Path
+) -> None:
+    (tmp_path / ".env").write_text("ARX_SMPT_HOST=secret-value\n")
+
+    with pytest.raises(SystemExit) as exit_info:
+        main(send_args(epub))
+
+    assert exit_info.value.code == "arx: unknown settings in .env: ARX_SMPT_HOST"
+    smtp.assert_not_called()
